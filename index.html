@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Japan Career | 正社員就労サポート</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans JP', sans-serif; }
+        .gantt-grid {
+            display: grid;
+            grid-template-columns: 85px 1fr;
+            gap: 12px;
+            align-items: center;
+        }
+        .gantt-track {
+            background-color: #f3f4f6;
+            height: 38px;
+            border-radius: 19px;
+            position: relative;
+            overflow: hidden;
+        }
+        .gantt-bar {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 10px;
+            border-radius: 19px;
+            position: absolute;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .hidden-view { display: none; }
+        
+        /* 翻訳ウィジェットのスタイル改善 */
+        #google_translate_element {
+            min-height: 40px;
+        }
+        .goog-te-gadget {
+            font-size: 0 !important;
+            color: transparent !important;
+        }
+        .goog-te-gadget .goog-te-combo {
+            margin: 0 !important;
+            padding: 8px 12px !important;
+            border-radius: 12px !important;
+            border: 1px solid #d1d5db !important;
+            background: #f9fafb !important;
+            font-size: 14px !important;
+            outline: none !important;
+            width: 100% !important;
+            max-width: 160px;
+            color: #374151;
+            cursor: pointer;
+        }
+        /* 不要なバーを非表示 */
+        body { top: 0 !important; }
+        .goog-te-banner-frame.skiptranslate { display: none !important; }
+        iframe.goog-te-menu-frame {
+            max-width: 100vw !important;
+            left: 0 !important;
+            top: 60px !important;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+
+    <div id="main-view">
+        <!-- Header -->
+        <header class="bg-white px-4 py-3 flex justify-between items-center sticky top-0 z-50 shadow-sm">
+            <div class="flex items-center space-x-2">
+                <span class="text-2xl">🌎</span>
+                <span class="text-xl font-bold text-blue-600 tracking-tight">Japan Career</span>
+            </div>
+            
+            <!-- 翻訳ウィジェット -->
+            <div id="google_translate_element"></div>
+        </header>
+
+        <!-- Hero Section -->
+        <section class="bg-gradient-to-br from-blue-600 to-blue-800 text-white py-12 px-6 text-center">
+            <h1 class="text-2xl md:text-3xl font-bold mb-4 leading-tight">長く、安定して働きませんか？</h1>
+            <p class="text-sm opacity-90 mb-8 px-4 leading-relaxed">法務のプロがビザ変更から入社まで一貫サポート。</p>
+            
+            <div class="flex flex-wrap justify-center gap-2 mb-4">
+                <span class="bg-white/20 px-4 py-2 rounded-full text-[11px] backdrop-blur-sm">入社まで最短3ヶ月</span>
+                <span class="bg-white/20 px-4 py-2 rounded-full text-[11px] backdrop-blur-sm">ビザ申請代行あり</span>
+            </div>
+            <div class="flex justify-center">
+                <span class="bg-white/20 px-6 py-2 rounded-full text-[11px] backdrop-blur-sm">相談無料</span>
+            </div>
+        </section>
+
+        <!-- 4つのメリット -->
+        <section class="py-12 px-5 max-w-lg mx-auto space-y-4">
+            <div class="bg-[#f0f7ff] p-5 rounded-2xl flex items-start space-x-4 border border-blue-50 shadow-sm">
+                <div class="text-3xl mt-1">💰</div>
+                <div>
+                    <h3 class="font-bold text-sm mb-1">給与・ボーナスの安定</h3>
+                    <p class="text-[11px] text-gray-500 leading-relaxed">時給ではなく「月給制」で毎月の収入が安定。多くの企業で年2回のボーナス支給があります。</p>
+                </div>
+            </div>
+            <div class="bg-[#f0fff4] p-5 rounded-2xl flex items-start space-x-4 border border-green-50 shadow-sm">
+                <div class="text-3xl mt-1">👨‍👩‍👧</div>
+                <div>
+                    <h4 class="font-bold text-sm mb-1">家族帯同へのステップ</h4>
+                    <p class="text-[11px] text-gray-500 leading-relaxed">「特定技能2号」への昇格や「技人国」ビザへの変更により、家族を日本へ呼ぶことが可能になります。</p>
+                </div>
+            </div>
+            <div class="bg-[#fff9f0] p-5 rounded-2xl flex items-start space-x-4 border border-orange-50 shadow-sm">
+                <div class="text-3xl mt-1">🛂</div>
+                <div>
+                    <h4 class="font-bold text-sm mb-1">永住権申請に有利</h4>
+                    <p class="text-[11px] text-gray-500 leading-relaxed">正社員としての継続的な就労実績は、将来の永住許可申請において非常に高く評価されます。</p>
+                </div>
+            </div>
+            <div class="bg-[#f9f0ff] p-5 rounded-2xl flex items-start space-x-4 border border-purple-50 shadow-sm">
+                <div class="text-3xl mt-1">🏥</div>
+                <div>
+                    <h4 class="font-bold text-sm mb-1">充実した社会保障</h4>
+                    <p class="text-[11px] text-gray-500 leading-relaxed">厚生年金、健康保険が完備。病気やケガの際の保障が手厚く、将来の年金額もアップします。</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- スケジュール -->
+        <section class="py-12 px-4 bg-white border-y">
+            <h2 class="text-2xl font-bold text-center mb-12">正社員化までのスケジュール</h2>
+            
+            <div class="max-w-md mx-auto">
+                <div class="grid grid-cols-[85px_1fr] gap-3 mb-6">
+                    <div></div>
+                    <div class="grid grid-cols-4 text-[10px] text-center font-bold text-gray-400">
+                        <div>1ヶ月</div><div>2ヶ月</div><div>3ヶ月</div><div>4ヶ月〜</div>
+                    </div>
+                </div>
+
+                <div class="space-y-5">
+                    <div class="gantt-grid">
+                        <div class="text-[11px] font-bold text-gray-600">面談・分析</div>
+                        <div class="gantt-track"><div class="gantt-bar bg-[#4285f4] w-1/4 left-0">開始</div></div>
+                    </div>
+                    <div class="gantt-grid">
+                        <div class="text-[11px] font-bold text-gray-600">企業紹介</div>
+                        <div class="gantt-track"><div class="gantt-bar bg-[#34a853] w-[45%] left-[12.5%]">マッチング</div></div>
+                    </div>
+                    <div class="gantt-grid">
+                        <div class="text-[11px] font-bold text-gray-600">ビザ申請</div>
+                        <div class="gantt-track"><div class="gantt-bar bg-[#fb8c00] w-[45%] left-[50%]">書類審査</div></div>
+                    </div>
+                    <div class="gantt-grid">
+                        <div class="text-[11px] font-bold text-gray-600">正社員入社</div>
+                        <div class="gantt-track"><div class="gantt-bar bg-[#ea4335] w-1/4 left-[75%]">就業開始</div></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 判定フォーム -->
+        <section id="form-section" class="py-16 px-6 bg-gray-50">
+            <div class="max-w-md mx-auto">
+                <h2 class="text-xl font-bold text-center mb-2">スピード正社員判定</h2>
+                <p class="text-center text-gray-500 text-[11px] mb-8">選択肢を選ぶだけで、あなたの「今」を判定します。</p>
+
+                <form id="rankingForm" action="https://formspree.io/f/mjgebwlk" method="POST" class="space-y-5">
+                    <div class="space-y-3">
+                        <input type="text" name="name" required placeholder="お名前（ローマ字）" class="w-full p-4 rounded-xl border-none text-sm shadow-sm outline-none focus:ring-2 focus:ring-blue-500">
+                        <input type="email" name="email" required placeholder="メールアドレス" class="w-full p-4 rounded-xl border-none text-sm shadow-sm outline-none focus:ring-2 focus:ring-blue-500">
+                        
+                        <select name="prefecture" required class="w-full p-4 rounded-xl border-none text-sm shadow-sm outline-none bg-white">
+                            <option value="">居住中の都道府県を選択</option>
+                            <option value="北海道">北海道</option><option value="青森県">青森県</option><option value="岩手県">岩手県</option><option value="宮城県">宮城県</option><option value="秋田県">秋田県</option><option value="山形県">山形県</option><option value="福島県">福島県</option><option value="茨城県">茨城県</option><option value="栃木県">栃木県</option><option value="群馬県">群馬県</option><option value="埼玉県">埼玉県</option><option value="千葉県">千葉県</option><option value="東京都">東京都</option><option value="神奈川県">神奈川県</option><option value="新潟県">新潟県</option><option value="富山県">富山県</option><option value="石川県">石川県</option><option value="福井県">福井県</option><option value="山梨県">山梨県</option><option value="長野県">長野県</option><option value="岐阜県">岐阜県</option><option value="静岡県">静岡県</option><option value="愛知県">愛知県</option><option value="三重県">三重県</option><option value="滋賀県">滋賀県</option><option value="京都府">京都府</option><option value="大阪府">大阪府</option><option value="兵庫県">兵庫県</option><option value="奈良県">奈良県</option><option value="和歌山県">和歌山県</option><option value="鳥取県">鳥取県</option><option value="島根県">島根県</option><option value="岡山県">岡山県</option><option value="広島県">広島県</option><option value="山口県">山口県</option><option value="徳島県">徳島県</option><option value="香川県">香川県</option><option value="愛媛県">愛媛県</option><option value="高知県">高知県</option><option value="福岡県">福岡県</option><option value="佐賀県">佐賀県</option><option value="長崎県">長崎県</option><option value="熊本県">熊本県</option><option value="大分県">大分県</option><option value="宮崎県">宮崎県</option><option value="鹿児島県">鹿児島県</option><option value="沖縄県">沖縄県</option>
+                        </select>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-2xl border border-gray-100 space-y-4 shadow-sm">
+                        <select id="jlpt" name="jlpt" required class="w-full p-3 rounded-lg border bg-gray-50 text-sm outline-none">
+                            <option value="">日本語能力（JLPT）</option>
+                            <option value="N2">N1・N2</option><option value="N3">N3</option><option value="N4">N4</option><option value="N5">N5以下</option>
+                        </select>
+                        <select id="skills" name="skills_test" required class="w-full p-3 rounded-lg border bg-gray-50 text-sm outline-none">
+                            <option value="">特定技能試験（分野別）</option>
+                            <option value="passed">合格済み</option><option value="planned">受験予定あり</option><option value="none">未取得</option>
+                        </select>
+                        <select id="edu" name="education" required class="w-full p-3 rounded-lg border bg-gray-50 text-sm outline-none">
+                            <option value="">最終学歴</option>
+                            <option value="univ">大学卒業</option><option value="senmon">日本の専門学校卒</option><option value="high">高校卒業</option>
+                        </select>
+                        <select id="expiry" name="visa_expiry" required class="w-full p-3 rounded-lg border bg-gray-50 text-sm outline-none">
+                            <option value="">ビザの残り期限</option>
+                            <option value="long">6ヶ月以上</option><option value="mid">3〜6ヶ月</option><option value="short">3ヶ月未満</option>
+                        </select>
+                        <div class="p-3 bg-red-50 rounded-lg">
+                            <label class="block text-[10px] font-bold text-red-600 mb-2 italic">【重要】ビザ制限の確認</label>
+                            <span class="text-[10px] text-gray-600 block mb-2 leading-tight">過去に週28時間を超える勤務経験がありますか？</span>
+                            <div class="flex gap-6">
+                                <label class="text-xs flex items-center cursor-pointer"><input type="radio" name="overwork" value="yes" class="mr-1"> あり</label>
+                                <label class="text-xs flex items-center cursor-pointer"><input type="radio" name="overwork" value="no" checked class="mr-1"> なし</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-all">判定結果を送信して確認</button>
+                </form>
+            </div>
+        </section>
+    </div>
+
+    <!-- 結果表示画面 -->
+    <div id="result-view" class="hidden-view min-h-screen bg-white px-6 py-16 text-center">
+        <div class="max-w-md mx-auto">
+            <div id="rank-badge" class="inline-block px-8 py-2 rounded-full text-white font-bold text-xl mb-6 shadow-md">Rank A</div>
+            <h2 id="result-title" class="text-2xl font-bold mb-4 tracking-tight">判定タイトル</h2>
+            <p id="result-desc" class="text-sm text-gray-500 leading-relaxed mb-10">メッセージ</p>
+            
+            <div id="action-box" class="bg-gray-50 p-6 rounded-3xl text-left border mb-10 shadow-inner">
+                <h3 class="font-bold text-xs text-blue-600 mb-4 border-b pb-2 uppercase tracking-widest">Advice for you</h3>
+                <ul id="action-list" class="space-y-3 text-[11px] text-gray-600"></ul>
+            </div>
+            
+            <button onclick="location.reload()" class="text-blue-600 font-bold text-sm underline">入力をやり直す</button>
+        </div>
+    </div>
+
+    <footer class="bg-gray-900 text-gray-500 py-10 px-6 text-center text-[10px] tracking-wide">
+        <p>&copy; 2024 Japan Career Support. All Rights Reserved.</p>
+    </footer>
+
+    <!-- Google 翻訳スクリプト -->
+    <script type="text/javascript">
+        function googleTranslateElementInit() {
+            new google.translate.TranslateElement({
+                pageLanguage: 'ja',
+                includedLanguages: 'en,vi,zh-CN,tl,id,ne,my,th,km',
+                layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
+                autoDisplay: false
+            }, 'google_translate_element');
+        }
+    </script>
+    <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+
+    <script>
+        document.getElementById('rankingForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const form = e.target;
+            const data = new FormData(form);
+
+            fetch(form.action, {
+                method: form.method,
+                body: data,
+                headers: { 'Accept': 'application/json' }
+            });
+
+            const jlpt = document.getElementById('jlpt').value;
+            const skills = document.getElementById('skills').value;
+            const overwork = document.querySelector('input[name="overwork"]:checked').value;
+            const expiry = document.getElementById('expiry').value;
+
+            let rank = 'C';
+            let title = '';
+            let desc = '';
+            let actions = [];
+            let color = 'bg-gray-500';
+
+            if ((jlpt === 'N2' || jlpt === 'N3') && skills === 'passed' && overwork === 'no' && expiry !== 'short') {
+                rank = 'A';
+                title = "即戦力候補：Rank A";
+                desc = "条件が完璧に揃っています。すぐに正社員マッチングを開始できます。担当者より優先的にご連絡いたします。";
+                color = 'bg-emerald-500';
+                actions = ["✅ 優先的な優良求人のご紹介","✅ 非公開案件（高待遇）のご提案","✅ 最短ルートでのビザ申請代行"];
+            } else if (jlpt !== 'N5' && overwork === 'no') {
+                rank = 'B';
+                title = "準即戦力：Rank B";
+                desc = "正社員化まであと少しです。不足している試験の合格や書類準備を並行して進めていきましょう。";
+                color = 'bg-blue-500';
+                actions = ["💡 特定技能試験の早期合格を目指しましょう","💡 N3レベル以上の日本語学習","💡 履歴書・経歴書の作成サポート"];
+            } else {
+                rank = 'C';
+                title = "条件の改善が必要：Rank C";
+                desc = "現在の状況では正社員化ビザの取得が難しい可能性があります。まずは不足要素をクリアしましょう。";
+                color = 'bg-slate-500';
+                if (overwork === 'yes') actions.push("⚠️ オーバーワークはビザ不許可の大きな原因です");
+                if (jlpt === 'N5') actions.push("❌ 日本語レベル（N4以上）の取得が必要です");
+                if (skills === 'none') actions.push("❌ 分野別技能試験の合格が必要です");
+                actions.push("💡 条件が整い次第、再度ご相談ください。");
+            }
+
+            document.getElementById('main-view').classList.add('hidden-view');
+            document.getElementById('result-view').classList.remove('hidden-view');
+            
+            const badge = document.getElementById('rank-badge');
+            badge.innerText = `判定結果：${rank}`;
+            badge.className = `inline-block px-8 py-2 rounded-full text-white font-bold text-xl mb-6 shadow-md ${color}`;
+            
+            document.getElementById('result-title').innerText = title;
+            document.getElementById('result-desc').innerText = desc;
+            document.getElementById('action-list').innerHTML = actions.map(a => `<li>• ${a}</li>`).join('');
+            
+            window.scrollTo(0, 0);
+        });
+    </script>
+</body>
+</html>
+
