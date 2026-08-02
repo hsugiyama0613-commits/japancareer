@@ -11,6 +11,7 @@ import argparse
 import json
 import os
 import sys
+import urllib.error
 import urllib.request
 
 from .report import build_report
@@ -20,12 +21,27 @@ def post_discord(text: str) -> None:
     url = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
     if not url:
         raise SystemExit("環境変数 DISCORD_WEBHOOK_URL が未設定です")
+    if "discord.com/api/webhooks/" not in url:
+        raise SystemExit(
+            "登録されたURLがDiscordウェブフックの形式ではありません"
+            "（招待リンク等の可能性）。チャンネル設定→連携サービス→"
+            "ウェブフックのURL(discord.com/api/webhooks/...)を登録してください"
+        )
     body = json.dumps({"content": text[:1990]}).encode()
     req = urllib.request.Request(
-        url, data=body, headers={"Content-Type": "application/json"}
+        url,
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "gold-weather/0.1 (+github-actions; personal use)",
+        },
     )
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        resp.read()
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            resp.read()
+    except urllib.error.HTTPError as e:
+        detail = e.read()[:200].decode("utf-8", "replace")
+        raise SystemExit(f"Discord送信失敗: HTTP {e.code}: {detail}") from e
 
 
 def main() -> None:
