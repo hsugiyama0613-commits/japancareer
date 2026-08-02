@@ -1,0 +1,198 @@
+"""無料データソースからの取得。すべて標準ライブラリのみ・APIキー不要。
+
+各関数は取得失敗時に None を返し、エラーは errors リストに積む。
+一部が落ちても天気予報全体は残りのデータで組み立てる（縮退運転）。
+"""
+from __future__ import annotations
+
+import csv
+import io
+import json
+import urllib.request
+from datetime import datetime, timezone
+
+UA = "Mozilla/5.0 (X11; Linux x86_64) gold-weather/0.1 (personal use)"
+TIMEOUT = 30
+
+GVZ_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=GVZCLS"
+STOOQ_URL = "https://stooq.com/q/d/l/?s=xauusd&i=d"
+COT_URL = (
+    "https://publicreporting.cftc.gov/resource/72hh-3qpy.json"
+    "?cftc_contract_market_code=088691"
+    "&$order=report_date_as_yyyy_mm_dd%20DESC&$limit=1100"
+)
+GLD_URL = "https://www.spdrgoldshares.com/assets/dynamic/GLD/GLD_US_archive_EN.csv"
+FF_CAL_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
+
+
+def _get(url: str) -> bytes:
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+        return resp.read()
+
+
+def fetch_gvz(errors: list[str]) -> dict | None:
+    """CBOE GVZ（金のインプライドボラ指数）の全履歴。FREDのCSV、キー不要。"""
+    try:
+        text = _get(GVZ_URL).decode("utf-8", "replace")
+        rows = list(csv.reader(io.StringIO(text)))
+        series = [
+            (r[0], float(r[1]))
+            for r in rows[1:]
+            if len(r) >= 2 and r[1] not in (".", "")
+        ]
+        if not series:
+            raise ValueError("empty series")
+        return {"series": series, "date": series[-1][0], "value": series[-1][1]}
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"GVZ取得失敗: {e}")
+        return None
+
+
+def fetch_price(errors: list[str]) -> dict | None:
+    """XAUUSD日足（Stooq CSV、キー不要）。前日高値安値と直近終値に使う。"""
+    try:
+        text = _get(STOOQ_URL).decode("utf-8", "replace")
+        rows = list(csv.DictReader(io.StringIO(text)))
+        if not rows:
+            raise ValueError("empty csv")
+        last = rows[-1]
+        return {
+            "date": last["Date"],
+            "open": float(last["Open"]),
+            "high": float(last["High"]),
+            "low": float(last["Low"]),
+            "close": float(last["Close"]),
+        }
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"価格取得失敗: {e}")
+        return None
+
+
+def _find_key(row: dict, *needles: str) -> str | None:
+    for k in row:
+        lk = k.lower()
+        if all(n in lk for n in needles):
+            return k
+    return None
+
+
+def fetch_cot(errors: list[str]) -> dict | None:
+    """CFTC COT（金・Disaggregated先物、週次）。Socrata API、認証不要。
+
+    フィールド名はSocrata側の命名揺れに備えて部分一致で解決する。
+    """
+    try:
+        data = json.loads(_get(COT_URL).decode("utf-8", "replace"))
+        if not data:
+            raise ValueError("empty response")
+        r0 = data[0]
+        k_long = _find_key(r0, "m_money", "long")
+        k_short = _find_key(r0, "m_money", "short")
+        k_oi = _find_key(r0, "open_interest_all") or _find_key(r0, "open_interest")
+        k_date = _find_key(r0, "report_date")
+        if not (k_long and k_short and k_oi and k_date):
+            raise ValueError(f"fields not found in keys: {list(r0)[:10]}...")
+        hist = []
+        for r in data:
+            try:
+                net = float(r[k_long]) - float(r[k_short])
+                oi = float(r[k_oi])
+                if oi > 0:
+                    hist.append((r[k_date][:10], net / oi))
+            except (KeyError, ValueError, TypeError):
+                continue
+        if not hist:
+            raise ValueError("no parsable rows")
+        latest = hist[0]
+        values = [v for _, v in hist]
+        rank = sum(1 for v in values if v <= latest[1]) / len(values)
+        return {
+            "date": latest[0],
+            "net_over_oi": latest[1],
+            "percentile": round(rank * 100),
+            "n_weeks": len(values),
+        }
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"COT取得失敗: {e}")
+        return None
+
+
+def fetch_gld(errors: list[str]) -> dict | None:
+    """GLD（最大の金ETF）の保有トン数。日次CSV全履歴。
+
+    CSVの先頭に前置き行があるため、ヘッダー行を 'Tonnes' 含有で探す。
+    """
+    try:
+        text = _get(GLD_URL).decode("utf-8", "replace")
+        lines = text.splitlines()
+        header_i = next(
+            i for i, ln in enumerate(lines) if "tonnes" in ln.lower()
+        )
+        rows = list(csv.reader(io.StringIO("\n".join(lines[header_i:]))))
+        header = [h.strip().lower() for h in rows[0]]
+        t_col = next(i for i, h in enumerate(header) if "tonnes" in h)
+        series = []
+        for r in rows[1:]:
+            if len(r) <= t_col:
+                continue
+            try:
+                series.append((r[0].strip(), float(r[t_col].replace(",", ""))))
+            except ValueError:
+                continue
+        if len(series) < 6:
+            raise ValueError("too few rows")
+        latest_d, latest_v = series[-1]
+        week_ago_v = series[-6][1]
+        return {
+            "date": latest_d,
+            "tonnes": latest_v,
+            "change_5d": latest_v - week_ago_v,
+        }
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"GLD取得失敗: {e}")
+        return None
+
+
+def fetch_calendar(errors: list[str]) -> list[dict] | None:
+    """ForexFactory 今週の経済指標カレンダー（forecast/previousのみ、actualなし）。
+
+    レート制限が厳しい（5分2回）ため、1日1回の朝実行でのみ叩くこと。
+    """
+    try:
+        data = json.loads(_get(FF_CAL_URL).decode("utf-8", "replace"))
+        events = []
+        for ev in data:
+            if ev.get("country") not in ("USD",):
+                continue
+            if ev.get("impact") not in ("High", "Medium"):
+                continue
+            try:
+                dt = datetime.fromisoformat(ev["date"])
+            except ValueError:
+                continue
+            events.append(
+                {
+                    "title": ev.get("title", "?"),
+                    "impact": ev["impact"],
+                    "utc": dt.astimezone(timezone.utc),
+                    "forecast": ev.get("forecast", ""),
+                    "previous": ev.get("previous", ""),
+                }
+            )
+        return events
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"カレンダー取得失敗: {e}")
+        return None
+
+
+def fetch_all() -> dict:
+    errors: list[str] = []
+    return {
+        "gvz": fetch_gvz(errors),
+        "price": fetch_price(errors),
+        "cot": fetch_cot(errors),
+        "gld": fetch_gld(errors),
+        "calendar": fetch_calendar(errors),
+        "errors": errors,
+    }

@@ -1,0 +1,27 @@
+name: gold-weather
+
+on:
+  schedule:
+    # 22:00 UTC = 日本時間 翌朝7:00（月〜土に配信。日曜朝は市場休みのため無し）
+    - cron: "0 22 * * 0-5"
+  workflow_dispatch: {}
+
+jobs:
+  weather:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build and post gold weather report
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -n "$DISCORD_WEBHOOK_URL" ]; then
+            python -m weather --post
+          else
+            echo "DISCORD_WEBHOOK_URL 未設定のため表示のみ:"
+            python -m weather
+          fi
