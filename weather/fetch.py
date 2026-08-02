@@ -43,8 +43,9 @@ def _get(url: str, tries: int = 3) -> bytes:
 
 
 def _head(text: str) -> str:
-    """エラーメッセージ用に応答の先頭を短く返す。"""
-    return text[:80].replace("\n", " ")
+    """エラーメッセージ用に応答の先頭を短く返す（改行・非印字文字は除去）。"""
+    clean = "".join(c for c in text[:120] if c.isprintable())
+    return clean[:80]
 
 
 def _yahoo_chart(symbol: str, range_: str, interval: str) -> dict:
