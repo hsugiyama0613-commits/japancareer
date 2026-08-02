@@ -47,47 +47,88 @@ def _head(text: str) -> str:
     return text[:80].replace("\n", " ")
 
 
+def _yahoo_chart(symbol: str, range_: str, interval: str) -> dict:
+    """Yahoo Finance chart API。キー不要・サーバーからのアクセスに比較的寛容。
+
+    戻り値: {"dates": [ISO日付], "open": [...], "high": [...], "low": [...], "close": [...]}
+    欠損(None)は落とす。
+    """
+    url = (
+        f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+        f"?range={range_}&interval={interval}"
+    )
+    data = json.loads(_get(url).decode("utf-8", "replace"))
+    result = data["chart"]["result"][0]
+    ts = result["timestamp"]
+    q = result["indicators"]["quote"][0]
+    out: dict = {"dates": [], "open": [], "high": [], "low": [], "close": []}
+    for i, t in enumerate(ts):
+        c = q["close"][i]
+        if c is None:
+            continue
+        out["dates"].append(
+            datetime.fromtimestamp(t, tz=timezone.utc).strftime("%Y-%m-%d")
+        )
+        out["close"].append(c)
+        out["open"].append(q["open"][i] if q["open"][i] is not None else c)
+        out["high"].append(q["high"][i] if q["high"][i] is not None else c)
+        out["low"].append(q["low"][i] if q["low"][i] is not None else c)
+    if not out["close"]:
+        raise ValueError(f"no data for {symbol}")
+    return out
+
+
 def fetch_gvz(errors: list[str]) -> dict | None:
-    """CBOE GVZ（金のインプライドボラ指数）の全履歴。FREDのCSV、キー不要。"""
+    """CBOE GVZ（金のインプライドボラ指数）。
+
+    第一候補: Yahoo ^GVZ（10年分・サーバーからでも通りやすい）
+    第二候補: FRED CSV（実行元IPによってはタイムアウトする）
+    """
     try:
-        text = _get(GVZ_URL).decode("utf-8", "replace")
-        rows = list(csv.reader(io.StringIO(text)))
-        series = [
-            (r[0], float(r[1]))
-            for r in rows[1:]
-            if len(r) >= 2 and r[1] not in (".", "")
-        ]
-        if not series:
-            raise ValueError("empty series")
+        ch = _yahoo_chart("%5EGVZ", "10y", "1d")
+        series = list(zip(ch["dates"], ch["close"]))
         return {"series": series, "date": series[-1][0], "value": series[-1][1]}
-    except Exception as e:  # noqa: BLE001
-        errors.append(f"GVZ取得失敗: {type(e).__name__}: {e}")
-        return None
+    except Exception as e_yahoo:  # noqa: BLE001
+        try:
+            text = _get(GVZ_URL).decode("utf-8", "replace")
+            rows = list(csv.reader(io.StringIO(text)))
+            series = [
+                (r[0], float(r[1]))
+                for r in rows[1:]
+                if len(r) >= 2 and r[1] not in (".", "")
+            ]
+            if not series:
+                raise ValueError("empty series")
+            return {"series": series, "date": series[-1][0], "value": series[-1][1]}
+        except Exception as e:  # noqa: BLE001
+            errors.append(
+                f"GVZ取得失敗: yahoo={type(e_yahoo).__name__}:{e_yahoo} / "
+                f"fred={type(e).__name__}:{e}"
+            )
+            return None
 
 
 def fetch_price(errors: list[str]) -> dict | None:
-    """XAUUSD日足（Stooq CSV、キー不要）。前日高値安値と直近終値に使う。"""
-    try:
-        text = _get(STOOQ_URL).decode("utf-8", "replace")
-        rows = list(csv.DictReader(io.StringIO(text)))
-        if not rows:
-            raise ValueError(f"empty csv (body: {_head(text)})")
-        # ヘッダーの大文字小文字揺れに対応
-        keymap = {k.strip().lower(): k for k in rows[-1].keys() if k}
-        need = ("date", "open", "high", "low", "close")
-        if not all(n in keymap for n in need):
-            raise ValueError(f"unexpected header (body: {_head(text)})")
-        last = rows[-1]
-        return {
-            "date": last[keymap["date"]],
-            "open": float(last[keymap["open"]]),
-            "high": float(last[keymap["high"]]),
-            "low": float(last[keymap["low"]]),
-            "close": float(last[keymap["close"]]),
-        }
-    except Exception as e:  # noqa: BLE001
-        errors.append(f"価格取得失敗: {type(e).__name__}: {e}")
-        return None
+    """金価格の日足。前日高値安値と直近終値に使う。
+
+    第一候補: Yahoo XAUUSD=X（スポット）、駄目なら GC=F（COMEX先物・ほぼ同水準）。
+    """
+    last_err: Exception | None = None
+    for symbol in ("XAUUSD%3DX", "GC%3DF"):
+        try:
+            ch = _yahoo_chart(symbol, "5d", "1d")
+            i = len(ch["close"]) - 1
+            return {
+                "date": ch["dates"][i],
+                "open": ch["open"][i],
+                "high": ch["high"][i],
+                "low": ch["low"][i],
+                "close": ch["close"][i],
+            }
+        except Exception as e:  # noqa: BLE001
+            last_err = e
+    errors.append(f"価格取得失敗: {type(last_err).__name__}: {last_err}")
+    return None
 
 
 def _find_key(row: dict, *needles: str) -> str | None:
