@@ -8,11 +8,15 @@ from __future__ import annotations
 import csv
 import io
 import json
+import time
 import urllib.request
 from datetime import datetime, timezone
 
-UA = "Mozilla/5.0 (X11; Linux x86_64) gold-weather/0.1 (personal use)"
-TIMEOUT = 30
+UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+)
+TIMEOUT = 45
 
 GVZ_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=GVZCLS"
 STOOQ_URL = "https://stooq.com/q/d/l/?s=xauusd&i=d"
@@ -25,10 +29,22 @@ GLD_URL = "https://www.spdrgoldshares.com/assets/dynamic/GLD/GLD_US_archive_EN.c
 FF_CAL_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
 
 
-def _get(url: str) -> bytes:
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
-    with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
-        return resp.read()
+def _get(url: str, tries: int = 3) -> bytes:
+    last: Exception | None = None
+    for i in range(tries):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": UA})
+            with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+                return resp.read()
+        except Exception as e:  # noqa: BLE001
+            last = e
+            time.sleep(2 * (i + 1))
+    raise last  # type: ignore[misc]
+
+
+def _head(text: str) -> str:
+    """エラーメッセージ用に応答の先頭を短く返す。"""
+    return text[:80].replace("\n", " ")
 
 
 def fetch_gvz(errors: list[str]) -> dict | None:
@@ -45,7 +61,7 @@ def fetch_gvz(errors: list[str]) -> dict | None:
             raise ValueError("empty series")
         return {"series": series, "date": series[-1][0], "value": series[-1][1]}
     except Exception as e:  # noqa: BLE001
-        errors.append(f"GVZ取得失敗: {e}")
+        errors.append(f"GVZ取得失敗: {type(e).__name__}: {e}")
         return None
 
 
@@ -55,17 +71,22 @@ def fetch_price(errors: list[str]) -> dict | None:
         text = _get(STOOQ_URL).decode("utf-8", "replace")
         rows = list(csv.DictReader(io.StringIO(text)))
         if not rows:
-            raise ValueError("empty csv")
+            raise ValueError(f"empty csv (body: {_head(text)})")
+        # ヘッダーの大文字小文字揺れに対応
+        keymap = {k.strip().lower(): k for k in rows[-1].keys() if k}
+        need = ("date", "open", "high", "low", "close")
+        if not all(n in keymap for n in need):
+            raise ValueError(f"unexpected header (body: {_head(text)})")
         last = rows[-1]
         return {
-            "date": last["Date"],
-            "open": float(last["Open"]),
-            "high": float(last["High"]),
-            "low": float(last["Low"]),
-            "close": float(last["Close"]),
+            "date": last[keymap["date"]],
+            "open": float(last[keymap["open"]]),
+            "high": float(last[keymap["high"]]),
+            "low": float(last[keymap["low"]]),
+            "close": float(last[keymap["close"]]),
         }
     except Exception as e:  # noqa: BLE001
-        errors.append(f"価格取得失敗: {e}")
+        errors.append(f"価格取得失敗: {type(e).__name__}: {e}")
         return None
 
 
@@ -114,7 +135,7 @@ def fetch_cot(errors: list[str]) -> dict | None:
             "n_weeks": len(values),
         }
     except Exception as e:  # noqa: BLE001
-        errors.append(f"COT取得失敗: {e}")
+        errors.append(f"COT取得失敗: {type(e).__name__}: {e}")
         return None
 
 
@@ -127,8 +148,10 @@ def fetch_gld(errors: list[str]) -> dict | None:
         text = _get(GLD_URL).decode("utf-8", "replace")
         lines = text.splitlines()
         header_i = next(
-            i for i, ln in enumerate(lines) if "tonnes" in ln.lower()
+            (i for i, ln in enumerate(lines) if "tonnes" in ln.lower()), None
         )
+        if header_i is None:
+            raise ValueError(f"'tonnes'列が見つからない (body: {_head(text)})")
         rows = list(csv.reader(io.StringIO("\n".join(lines[header_i:]))))
         header = [h.strip().lower() for h in rows[0]]
         t_col = next(i for i, h in enumerate(header) if "tonnes" in h)
@@ -150,7 +173,7 @@ def fetch_gld(errors: list[str]) -> dict | None:
             "change_5d": latest_v - week_ago_v,
         }
     except Exception as e:  # noqa: BLE001
-        errors.append(f"GLD取得失敗: {e}")
+        errors.append(f"GLD取得失敗: {type(e).__name__}: {e}")
         return None
 
 
@@ -182,7 +205,7 @@ def fetch_calendar(errors: list[str]) -> list[dict] | None:
             )
         return events
     except Exception as e:  # noqa: BLE001
-        errors.append(f"カレンダー取得失敗: {e}")
+        errors.append(f"カレンダー取得失敗: {type(e).__name__}: {e}")
         return None
 
 
