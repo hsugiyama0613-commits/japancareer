@@ -1,7 +1,7 @@
 {
  "meta": {
-  "bars": 2723144,
-  "days": 1928,
+  "bars": 3763847,
+  "days": 2666,
   "span": [
    "2018-01-01 00:00:00+00:00",
    "2026-08-02 23:58:00+00:00"
@@ -10,251 +10,264 @@
  "H3_時刻別ボラ": {
   "hourly_abs_return_profile_utc": {
    "0": {
-    "median_abs_ret_pct": 0.00708,
-    "n": 115679
+    "median_abs_ret_pct": 0.00695,
+    "n": 159959
    },
    "1": {
-    "median_abs_ret_pct": 0.0099,
-    "n": 115680
+    "median_abs_ret_pct": 0.00912,
+    "n": 159960
    },
    "2": {
-    "median_abs_ret_pct": 0.00761,
-    "n": 115680
+    "median_abs_ret_pct": 0.00708,
+    "n": 159960
    },
    "3": {
-    "median_abs_ret_pct": 0.00613,
-    "n": 115680
+    "median_abs_ret_pct": 0.00577,
+    "n": 159960
    },
    "4": {
-    "median_abs_ret_pct": 0.00528,
-    "n": 115680
+    "median_abs_ret_pct": 0.00498,
+    "n": 159960
    },
    "5": {
-    "median_abs_ret_pct": 0.00707,
-    "n": 115680
+    "median_abs_ret_pct": 0.00668,
+    "n": 159960
    },
    "6": {
-    "median_abs_ret_pct": 0.00876,
-    "n": 115680
+    "median_abs_ret_pct": 0.00838,
+    "n": 159960
    },
    "7": {
-    "median_abs_ret_pct": 0.00986,
-    "n": 115680
+    "median_abs_ret_pct": 0.00934,
+    "n": 159960
    },
    "8": {
-    "median_abs_ret_pct": 0.00954,
-    "n": 115680
+    "median_abs_ret_pct": 0.009,
+    "n": 159960
    },
    "9": {
-    "median_abs_ret_pct": 0.00841,
-    "n": 115680
+    "median_abs_ret_pct": 0.00805,
+    "n": 159960
    },
    "10": {
-    "median_abs_ret_pct": 0.00792,
-    "n": 115680
+    "median_abs_ret_pct": 0.00761,
+    "n": 159960
    },
    "11": {
-    "median_abs_ret_pct": 0.00853,
-    "n": 115680
+    "median_abs_ret_pct": 0.00819,
+    "n": 159960
    },
    "12": {
-    "median_abs_ret_pct": 0.01181,
-    "n": 115680
+    "median_abs_ret_pct": 0.01157,
+    "n": 159960
    },
    "13": {
-    "median_abs_ret_pct": 0.01651,
-    "n": 115680
+    "median_abs_ret_pct": 0.01573,
+    "n": 159960
    },
    "14": {
-    "median_abs_ret_pct": 0.01641,
-    "n": 115680
+    "median_abs_ret_pct": 0.01558,
+    "n": 159960
    },
    "15": {
-    "median_abs_ret_pct": 0.01342,
-    "n": 115680
+    "median_abs_ret_pct": 0.01285,
+    "n": 159960
    },
    "16": {
-    "median_abs_ret_pct": 0.01018,
-    "n": 115677
+    "median_abs_ret_pct": 0.00967,
+    "n": 159957
    },
    "17": {
-    "median_abs_ret_pct": 0.00852,
-    "n": 115484
+    "median_abs_ret_pct": 0.0083,
+    "n": 159704
    },
    "18": {
-    "median_abs_ret_pct": 0.00745,
-    "n": 115376
+    "median_abs_ret_pct": 0.00736,
+    "n": 159521
    },
    "19": {
-    "median_abs_ret_pct": 0.00668,
-    "n": 115168
+    "median_abs_ret_pct": 0.00665,
+    "n": 159034
    },
    "20": {
-    "median_abs_ret_pct": 0.00507,
-    "n": 115067
+    "median_abs_ret_pct": 0.00497,
+    "n": 158882
    },
    "21": {
     "median_abs_ret_pct": 0.0,
-    "n": 103074
+    "n": 141592
    },
    "22": {
-    "median_abs_ret_pct": 0.00182,
-    "n": 96240
+    "median_abs_ret_pct": 0.0021,
+    "n": 132960
    },
    "23": {
-    "median_abs_ret_pct": 0.0069,
-    "n": 96178
+    "median_abs_ret_pct": 0.00678,
+    "n": 132837
    }
   }
  },
  "H7_週末ギャップ": {
-  "n_total": 3,
+  "n_total": 435,
+  "mondays_checked": 435,
   "~0.1%": {
-   "n": "n=1⚠️n<30",
-   "fill_rate_same_day": 0.0,
-   "median_hours_to_fill": null
+   "n": "n=272",
+   "fill_rate_same_day": 0.857,
+   "median_hours_to_fill": 22.02
   },
   "0.1-0.3%": {
-   "n": "n=1⚠️n<30",
-   "fill_rate_same_day": 1.0,
-   "median_hours_to_fill": 23.3
+   "n": "n=104",
+   "fill_rate_same_day": 0.577,
+   "median_hours_to_fill": 22.2
+  },
+  "0.3-0.6%": {
+   "n": "n=35",
+   "fill_rate_same_day": 0.314,
+   "median_hours_to_fill": 22.77
   },
   "0.6%~": {
-   "n": "n=1⚠️n<30",
+   "n": "n=24⚠️n<30",
    "fill_rate_same_day": 0.0,
    "median_hours_to_fill": null
   },
   "by_regime_fill_rate": {
    "2022-23": {
-    "n": "n=2⚠️n<30",
-    "fill_rate_same_day": 0.5
+    "n": "n=101",
+    "fill_rate_same_day": 0.802
    },
    "2024〜": {
-    "n": "n=1⚠️n<30",
-    "fill_rate_same_day": 0.0
+    "n": "n=133",
+    "fill_rate_same_day": 0.647
+   },
+   "〜2021": {
+    "n": "n=201",
+    "fill_rate_same_day": 0.682
    }
   }
  },
  "H8_セッション効率": {
-  "note": "効率=|正味|/経路長。1=一方向,0=完全往復。セッション境界は固定UTC(夏冬時間未補正)",
+  "note": "trendiness=|net|/(high-low) 1=一方向 0=行って来い。path15=15分足経路での|net|/経路長。境界は固定UTC(夏冬未補正)",
   "アジア(0-7 UTC)": {
-   "n": "n=1597",
-   "quartiles": [
-    0.0208,
-    0.0451,
-    0.0736
+   "n": "n=2209",
+   "trendiness_quartiles": [
+    0.2406,
+    0.4621,
+    0.6547
    ],
-   "by_regime_median": {
+   "path15_median": 0.182,
+   "by_regime_trendiness_median": {
     "2022-23": {
-     "n": "n=502",
-     "median": 0.039
+     "n": "n=515",
+     "median": 0.419
     },
     "2024〜": {
      "n": "n=665",
-     "median": 0.048
+     "median": 0.472
     },
     "〜2021": {
-     "n": "n=430",
-     "median": 0.047
+     "n": "n=1029",
+     "median": 0.469
     }
    }
   },
   "ロンドン(7-12 UTC)": {
-   "n": "n=1597",
-   "quartiles": [
-    0.0225,
-    0.0476,
-    0.078
+   "n": "n=2209",
+   "trendiness_quartiles": [
+    0.2159,
+    0.4295,
+    0.6512
    ],
-   "by_regime_median": {
+   "path15_median": 0.198,
+   "by_regime_trendiness_median": {
     "2022-23": {
-     "n": "n=502",
-     "median": 0.048
+     "n": "n=515",
+     "median": 0.44
     },
     "2024〜": {
      "n": "n=665",
-     "median": 0.046
+     "median": 0.428
     },
     "〜2021": {
-     "n": "n=430",
-     "median": 0.05
+     "n": "n=1029",
+     "median": 0.426
     }
    }
   },
   "NY(12-21 UTC)": {
-   "n": "n=1597",
-   "quartiles": [
-    0.0189,
-    0.0395,
-    0.0704
+   "n": "n=2209",
+   "trendiness_quartiles": [
+    0.2386,
+    0.4489,
+    0.6616
    ],
-   "by_regime_median": {
+   "path15_median": 0.16,
+   "by_regime_trendiness_median": {
     "2022-23": {
-     "n": "n=502",
-     "median": 0.039
+     "n": "n=515",
+     "median": 0.438
     },
     "2024〜": {
      "n": "n=665",
-     "median": 0.039
+     "median": 0.456
     },
     "〜2021": {
-     "n": "n=430",
-     "median": 0.042
+     "n": "n=1029",
+     "median": 0.447
     }
    }
   }
  },
  "H9_消化率と追加変動": {
   "note": "consumed=11UTC時点の(高-安)/直近60日中央値レンジ。extra=その後のレンジ外拡張量(同基準比)",
-  "n_total": 1898,
+  "n_total": 2636,
   "~50%": {
-   "n": "n=432",
-   "P(さらに10%以上拡張)": 0.919,
+   "n": "n=613",
+   "P(さらに10%以上拡張)": 0.917,
    "追加拡張quartiles": [
-    0.2533,
-    0.4758,
-    0.7739
+    0.2488,
+    0.4609,
+    0.7624
    ]
   },
   "50-80%": {
-   "n": "n=648",
-   "P(さらに10%以上拡張)": 0.866,
+   "n": "n=896",
+   "P(さらに10%以上拡張)": 0.872,
    "追加拡張quartiles": [
-    0.19,
-    0.3738,
-    0.6865
+    0.188,
+    0.3741,
+    0.6894
    ]
   },
   "80-110%": {
-   "n": "n=296",
-   "P(さらに10%以上拡張)": 0.801,
+   "n": "n=406",
+   "P(さらに10%以上拡張)": 0.793,
    "追加拡張quartiles": [
-    0.1605,
-    0.3924,
-    0.6459
+    0.1492,
+    0.3705,
+    0.6689
    ]
   },
   "110%~": {
-   "n": "n=197",
-   "P(さらに10%以上拡張)": 0.751,
+   "n": "n=270",
+   "P(さらに10%以上拡張)": 0.741,
    "追加拡張quartiles": [
-    0.1001,
-    0.3845,
-    1.0756
+    0.0872,
+    0.3873,
+    1.0498
    ]
   },
   "by_regime_P(拡張)": {
    "2022-23": {
-    "n": "n=604",
-    "p": 0.881
+    "n": "n=619",
+    "p": 0.884
    },
    "2024〜": {
     "n": "n=805",
     "p": 0.855
    },
    "〜2021": {
-    "n": "n=489",
-    "p": 0.908
+    "n": "n=1212",
+    "p": 0.888
    }
   }
  }
