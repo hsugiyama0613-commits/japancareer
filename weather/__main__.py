@@ -21,7 +21,9 @@ def post_discord(text: str) -> None:
     url = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
     if not url:
         raise SystemExit("環境変数 DISCORD_WEBHOOK_URL が未設定です")
-    if "discord.com/api/webhooks/" not in url:
+    if "/api/webhooks/" not in url:
+        # discord.com / discordapp.com どちらの正規形式も通す。
+        # ここに来るのは招待リンク(discord.gg)等が入っている場合のみ。
         raise SystemExit(
             "登録されたURLがDiscordウェブフックの形式ではありません"
             "（招待リンク等の可能性）。チャンネル設定→連携サービス→"
