@@ -84,33 +84,44 @@ def daily(d: pd.DataFrame) -> pd.DataFrame:
 
 # ---------- H7: 週末ギャップ ----------
 def h7(d: pd.DataFrame, day: pd.DataFrame) -> dict:
+    """金曜クローズ→週明け最初の気配のギャップと、週明けセッション内の埋め。
+
+    週明けは日曜夜(UTC)に薄く再開するため、「金曜の最終バー」から
+    「その後最初のバー」までを機械的にギャップとし、埋め判定は
+    週明けから月曜終わりまでのバー全体で行う。
+    """
     res = []
     days = day.index.to_list()
+    checked = 0
     for i in range(1, len(days)):
         prev, cur = days[i - 1], days[i]
-        if cur.weekday() != 0 or (cur - prev).days < 2:
-            continue  # 月曜×直前が金曜(週末を挟む)のみ
-        fri_close = day.loc[prev, "close"]
-        mon = d[d.index.date == cur.date()]
-        if len(mon) < 300:
+        if prev.weekday() != 4:  # 直前営業日が金曜=週末をまたぐ
             continue
-        gap = mon["open"].iloc[0] - fri_close
+        checked += 1
+        fri_bars = d[d.index.date == prev.date()]
+        if fri_bars.empty:
+            continue
+        fri_close = float(fri_bars["close"].iloc[-1])
+        fri_end = fri_bars.index[-1]
+        post = d[(d.index > fri_end)
+                 & (d.index.date <= cur.date())]  # 日曜夜+週明け初日
+        if len(post) < 100:
+            continue
+        gap = float(post["open"].iloc[0]) - fri_close
         gap_pct = gap / fri_close * 100
-        # 埋め判定: 月曜中に金曜終値までタッチしたか
         if gap > 0:
-            filled = bool((mon["low"] <= fri_close).any())
-            t_fill = mon.index[mon["low"] <= fri_close][0] if filled else None
+            hit = post.index[post["low"] <= fri_close]
         else:
-            filled = bool((mon["high"] >= fri_close).any())
-            t_fill = mon.index[mon["high"] >= fri_close][0] if filled else None
-        hours = ((t_fill - mon.index[0]).total_seconds() / 3600) if filled else None
+            hit = post.index[post["high"] >= fri_close]
+        filled = len(hit) > 0
+        hours = ((hit[0] - post.index[0]).total_seconds() / 3600) if filled else None
         res.append({"date": str(cur.date()), "gap_pct": gap_pct,
                     "abs_gap_pct": abs(gap_pct), "filled_same_day": filled,
                     "hours_to_fill": hours, "regime": regime_of(cur.year)})
     df = pd.DataFrame(res)
     if df.empty:
-        return {"error": "no weekend gaps found"}
-    out = {"n_total": int(len(df))}
+        return {"error": "no weekend gaps found", "mondays_checked": checked}
+    out = {"n_total": int(len(df)), "mondays_checked": checked}
     df["bucket"] = pd.cut(df["abs_gap_pct"], [0, 0.1, 0.3, 0.6, 99],
                           labels=["~0.1%", "0.1-0.3%", "0.3-0.6%", "0.6%~"])
     for b, g in df.groupby("bucket", observed=True):
@@ -134,25 +145,37 @@ SESSIONS_UTC = {"アジア(0-7 UTC)": (0, 7), "ロンドン(7-12 UTC)": (7, 12),
 
 
 def h8(d: pd.DataFrame) -> dict:
-    out = {"note": "効率=|正味|/経路長。1=一方向,0=完全往復。セッション境界は固定UTC(夏冬時間未補正)"}
-    closes = d["close"]
+    """トレンド性 = |終値-始値| / (高値-安値)。1分経路ベースはノイズ支配で
+    無意味だったため(初回実行の教訓)、トレーダー体感に対応する指標に変更。
+    参考として15分足経路の効率も併記。"""
+    out = {"note": "trendiness=|net|/(high-low) 1=一方向 0=行って来い。"
+                   "path15=15分足経路での|net|/経路長。境界は固定UTC(夏冬未補正)"}
     for name, (h0, h1) in SESSIONS_UTC.items():
         seg = d[(d.index.hour >= h0) & (d.index.hour < h1)]
-        effs = []
+        rows = []
         for date, g in seg.groupby(seg.index.date):
-            c = g["close"]
-            if len(c) < 60:
+            if len(g) < 60:
                 continue
-            path = c.diff().abs().sum()
-            if path > 0:
-                effs.append({"eff": abs(c.iloc[-1] - c.iloc[0]) / path,
-                             "regime": regime_of(pd.Timestamp(date).year)})
-        df = pd.DataFrame(effs)
-        entry = {"n": warn_n(len(df)),
-                 "quartiles": q(df["eff"]) if len(df) else None}
-        entry["by_regime_median"] = {
-            r: {"n": warn_n(len(g)), "median": round(float(g["eff"].median()), 3)}
-            for r, g in df.groupby("regime")} if len(df) else {}
+            hi, lo = g["high"].max(), g["low"].min()
+            if hi <= lo:
+                continue
+            net = abs(g["close"].iloc[-1] - g["open"].iloc[0])
+            c15 = g["close"].resample("15min").last().dropna()
+            path15 = c15.diff().abs().sum()
+            rows.append({
+                "trendiness": net / (hi - lo),
+                "path15": (net / path15) if path15 > 0 else None,
+                "regime": regime_of(pd.Timestamp(date).year),
+            })
+        df = pd.DataFrame(rows)
+        entry = {"n": warn_n(len(df))}
+        if len(df):
+            entry["trendiness_quartiles"] = q(df["trendiness"])
+            entry["path15_median"] = round(float(df["path15"].dropna().median()), 3)
+            entry["by_regime_trendiness_median"] = {
+                r: {"n": warn_n(len(g)),
+                    "median": round(float(g["trendiness"].median()), 3)}
+                for r, g in df.groupby("regime")}
         out[name] = entry
     return out
 

@@ -26,6 +26,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Restore price data cache
+        uses: actions/cache@v4
+        with:
+          path: data/dl
+          key: xauusd-m1-${{ github.run_id }}
+          restore-keys: |
+            xauusd-m1-
       - name: Download XAUUSD 1m history (dukascopy, 年別・低速)
         run: |
           FROM="${{ inputs.from_date }}"
@@ -38,10 +45,17 @@ jobs:
             S="$Y-01-01"; E="$Y-12-31"
             [ "$Y" = "$Y0" ] && S="$FROM"
             [ "$Y" = "$Y1" ] && E="$TODAY"
+            if [ -f "data/dl/.done-$Y" ] && [ "$Y" != "$Y1" ]; then
+              echo "=== $Y cached, skip"; continue
+            fi
             echo "=== $S .. $E"
-            npx --yes dukascopy-node -i xauusd -from "$S" -to "$E" \
-              -t m1 -f csv -dir "data/dl" -r 10 -rp 5000 -bs 3 \
-              || echo "!! $Y failed (continue)"
+            rm -f data/dl/xauusd-m1-*"$Y"*.csv 2>/dev/null || true
+            if npx --yes dukascopy-node -i xauusd -from "$S" -to "$E" \
+              -t m1 -f csv -dir "data/dl" -r 10 -rp 5000 -bs 3; then
+              touch "data/dl/.done-$Y"
+            else
+              echo "!! $Y failed (continue)"
+            fi
             sleep 45
           done
           ls -la data/dl | head -20
