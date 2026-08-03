@@ -37,6 +37,14 @@ def demo_payload() -> dict:
             "n_weeks": 1043,
         },
         "gld": {"date": "2026-07-31", "tonnes": 1012.0, "change_5d": +8.4},
+        "intraday": {
+            "open": 3341.0,
+            "close": 3352.0,
+            "high": 3358.0,
+            "low": 3330.0,
+            "efficiency": 0.18,
+            "n_bars": 132,
+        },
         "calendar": [
             {
                 "title": "Non-Farm Employment Change",

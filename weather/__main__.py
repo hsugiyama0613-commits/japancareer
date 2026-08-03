@@ -50,19 +50,31 @@ def main() -> None:
     ap = argparse.ArgumentParser(prog="weather")
     ap.add_argument("--demo", action="store_true", help="サンプルデータで表示")
     ap.add_argument("--post", action="store_true", help="Discordに送信")
+    ap.add_argument(
+        "--evening", action="store_true", help="夜のNY時間注意報を出す"
+    )
     args = ap.parse_args()
+
+    from .report import build_evening_report
 
     if args.demo:
         from .demo_data import demo_payload
         from datetime import datetime
         from zoneinfo import ZoneInfo
 
-        now = datetime(2026, 8, 7, 7, 0, tzinfo=ZoneInfo("Asia/Tokyo"))
-        text = build_report(demo_payload(), now=now, demo=True)
+        if args.evening:
+            now = datetime(2026, 8, 7, 20, 0, tzinfo=ZoneInfo("Asia/Tokyo"))
+            text = build_evening_report(demo_payload(), now=now, demo=True)
+        else:
+            now = datetime(2026, 8, 7, 7, 0, tzinfo=ZoneInfo("Asia/Tokyo"))
+            text = build_report(demo_payload(), now=now, demo=True)
     else:
         from .fetch import fetch_all
 
-        text = build_report(fetch_all())
+        if args.evening:
+            text = build_evening_report(fetch_all(intraday=True))
+        else:
+            text = build_report(fetch_all())
 
     print(text)
     if args.post:

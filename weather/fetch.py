@@ -276,9 +276,40 @@ def fetch_calendar(errors: list[str]) -> list[dict] | None:
         return None
 
 
-def fetch_all() -> dict:
+def fetch_intraday(errors: list[str]) -> dict | None:
+    """本日ここまでの日中足（5分足）。夜の「NY時間注意報」用。
+
+    トレンド効率 = |正味の値動き| ÷ 総移動距離（1に近いほど一方向、
+    0に近いほど往復）。H8検証前の参考値として扱うこと。
+    """
+    last_err: Exception | None = None
+    for symbol in ("XAUUSD%3DX", "GC%3DF"):
+        try:
+            ch = _yahoo_chart(symbol, "1d", "5m")
+            closes = ch["close"]
+            if len(closes) < 12:
+                raise ValueError(f"bars too few: {len(closes)}")
+            o, c = ch["open"][0], closes[-1]
+            path = sum(
+                abs(closes[i] - closes[i - 1]) for i in range(1, len(closes))
+            )
+            return {
+                "open": o,
+                "close": c,
+                "high": max(ch["high"]),
+                "low": min(ch["low"]),
+                "efficiency": (abs(c - o) / path) if path > 0 else None,
+                "n_bars": len(closes),
+            }
+        except Exception as e:  # noqa: BLE001
+            last_err = e
+    errors.append(f"日中足取得失敗: {type(last_err).__name__}: {last_err}")
+    return None
+
+
+def fetch_all(intraday: bool = False) -> dict:
     errors: list[str] = []
-    return {
+    out = {
         "gvz": fetch_gvz(errors),
         "price": fetch_price(errors),
         "cot": fetch_cot(errors),
@@ -286,3 +317,6 @@ def fetch_all() -> dict:
         "calendar": fetch_calendar(errors),
         "errors": errors,
     }
+    if intraday:
+        out["intraday"] = fetch_intraday(errors)
+    return out

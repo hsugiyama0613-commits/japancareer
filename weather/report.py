@@ -199,3 +199,86 @@ def build_report(data: dict, now: datetime | None = None, demo: bool = False) ->
         print("fetch errors: " + " / ".join(errs), file=sys.stderr)
 
     return "\n".join(lines)
+
+
+def build_evening_report(data: dict, now: datetime | None = None, demo: bool = False) -> str:
+    """夜配信「NY時間の注意報」。本日ここまでの実測＋今夜のイベント。
+
+    方向は言わない。トレンド効率などの時間帯統計はH8検証前の参考値。
+    """
+    now = (now or datetime.now(tz=JST)).astimezone(JST)
+    gvz, intra, calendar = data.get("gvz"), data.get("intraday"), data["calendar"]
+    lines: list[str] = []
+
+    wd = "月火水木金土日"[now.weekday()]
+    header = f"🌆 NY時間の注意報 {now:%-m/%-d}({wd}) {now:%H:%M}"
+    if demo:
+        header += "【デモ・サンプルデータ】"
+    lines.append(header)
+    lines.append("")
+
+    # --- 本日ここまでの実測 ---
+    lines.append("【東京〜ロンドンの実測】")
+    if intra:
+        rng = intra["high"] - intra["low"]
+        eff = intra.get("efficiency")
+        if eff is not None:
+            shape = "片道(トレンド)寄り" if eff >= 0.45 else (
+                "往復(レンジ)寄り" if eff <= 0.2 else "中間"
+            )
+            eff_txt = f"、動き方は{shape}（効率{eff:.2f}※参考値）"
+        else:
+            eff_txt = ""
+        lines.append(
+            f"・値幅 ${rng:.0f}（高値{intra['high']:.0f} / 安値{intra['low']:.0f}）{eff_txt}"
+        )
+        if gvz:
+            daily_sigma_usd = intra["close"] * gvz["value"] / math.sqrt(252) / 100
+            used = rng / daily_sigma_usd * 100 if daily_sigma_usd > 0 else 0
+            lines.append(
+                f"・想定日次レンジ±${daily_sigma_usd:.0f}に対し消化率{used:.0f}%"
+                "（イベント日は夜に拡張されやすい点に注意）"
+            )
+    else:
+        lines.append("・日中足の取得失敗のため実測なし")
+
+    # --- 今夜のイベント（今〜翌朝7時まで） ---
+    lines.append("")
+    lines.append("【今夜の予定（🚫=前後15分は新規禁止）】")
+    tonight_end = (now + timedelta(days=1)).replace(hour=7, minute=0)
+    tonight = []
+    if calendar is not None:
+        for e in sorted(calendar, key=lambda x: x["utc"]):
+            jst = e["utc"].astimezone(JST)
+            if now - timedelta(minutes=30) <= jst <= tonight_end and e["impact"] == "High":
+                tonight.append(f"🚫 {jst:%H:%M} {e['title']}")
+    if tonight:
+        lines.extend(tonight[:5])
+    else:
+        lines.append("・重要発表なし（それでもNY序盤と本日高安の更新時は値が飛びやすい）")
+
+    # --- NY時間のヒゲ注意ゾーン（本日高安＋キリ番で更新） ---
+    lines.append("")
+    lines.append("【NY時間のヒゲ注意ゾーン】")
+    if intra:
+        radius = intra["close"] * 0.012
+        zones = [(f"{intra['high']:.0f}(本日高値)", intra["high"]),
+                 (f"{intra['low']:.0f}(本日安値)", intra["low"])]
+        zones += [(f"{lv:.0f}(キリ番)", lv) for lv in _round_levels(intra["close"], radius)]
+        zones.sort(key=lambda z: abs(z[1] - intra["close"]))
+        lines.append("・" + " / ".join(z[0] for z in zones[:4]))
+        lines.append("　→ 本日高安の直外は特にストップ集中帯。抜けたら加速想定")
+    else:
+        lines.append("・算出不可")
+
+    lines.append("")
+    lines.append("・持ち越すなら明朝6-7時のスプレッド拡大帯に注意")
+    lines.append("※方向(上下)は言いません。効率等の時間帯統計は検証前(H8)の参考値です。")
+
+    errs = data.get("errors") or []
+    if errs:
+        names = sorted({e.split("取得失敗", 1)[0] for e in errs})
+        lines.append(f"（{ '・'.join(names) } は本日取得できず。他は正常）")
+        print("fetch errors: " + " / ".join(errs), file=sys.stderr)
+
+    return "\n".join(lines)

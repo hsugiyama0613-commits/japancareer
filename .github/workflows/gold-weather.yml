@@ -4,7 +4,14 @@ on:
   schedule:
     # 22:00 UTC = 日本時間 翌朝7:00（月〜土に配信。日曜朝は市場休みのため無し）
     - cron: "0 22 * * 0-5"
-  workflow_dispatch: {}
+    # 11:00 UTC = 日本時間 20:00（月〜金）: NY時間の注意報
+    - cron: "0 11 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "auto / morning / evening"
+        required: false
+        default: "auto"
 
 jobs:
   weather:
@@ -20,10 +27,19 @@ jobs:
       - name: Build and post gold weather report
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          MODE_INPUT: ${{ inputs.mode }}
         run: |
+          MODE="${MODE_INPUT:-auto}"
+          if [ "$MODE" = "auto" ]; then
+            H=$(date -u +%H)
+            if [ "$H" -ge 9 ] && [ "$H" -le 15 ]; then MODE=evening; else MODE=morning; fi
+          fi
+          ARGS=""
+          [ "$MODE" = "evening" ] && ARGS="--evening"
+          echo "mode: $MODE"
           if [ -n "$DISCORD_WEBHOOK_URL" ]; then
-            python -m weather --post
+            python -m weather $ARGS --post
           else
             echo "DISCORD_WEBHOOK_URL 未設定のため表示のみ:"
-            python -m weather
+            python -m weather $ARGS
           fi
