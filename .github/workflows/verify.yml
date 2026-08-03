@@ -1,0 +1,49 @@
+name: verify
+
+on:
+  workflow_dispatch:
+    inputs:
+      from_date:
+        description: "取得開始日 (YYYY-MM-DD)"
+        required: false
+        default: "2018-01-01"
+  schedule:
+    # 毎月第1土曜 03:00 UTC に再計算（最新データ込みで統計を更新）
+    - cron: "0 3 1-7 * 6"
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Download XAUUSD 1m history (dukascopy)
+        run: |
+          FROM="${{ inputs.from_date }}"
+          FROM="${FROM:-2018-01-01}"
+          TO=$(date -u +%Y-%m-%d)
+          mkdir -p data/dl
+          npx --yes dukascopy-node -i xauusd -from "$FROM" -to "$TO" \
+            -t m1 -f csv -dir data/dl -r 5 -bs 20 -rp 500
+          ls -la data/dl | head
+          wc -l data/dl/*.csv | tail -1
+      - name: Analyze (H3/H7/H8/H9)
+        run: |
+          pip install --quiet pandas numpy
+          python verify/analyze.py
+      - name: Commit results
+        run: |
+          git config user.name "gold-weather-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add verify/results
+          git commit -m "verify: 一括検証結果を更新 (H3/H7/H8/H9)" || echo "no changes"
+          git push
