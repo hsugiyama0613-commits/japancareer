@@ -1,0 +1,22 @@
+name: gold-watch
+
+on:
+  schedule:
+    # 毎時23分、7〜21 UTC（ロンドン〜NY時間帯）月〜金。
+    # 事象（ゾーン初タッチ/レンジ拡張）があった時だけDiscordに速報。平常時は沈黙。
+    - cron: "23 7-21 * * 1-5"
+  workflow_dispatch: {}
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Watch and alert if notable
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python -m weather --watch --post

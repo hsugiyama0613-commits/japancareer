@@ -53,9 +53,28 @@ def main() -> None:
     ap.add_argument(
         "--evening", action="store_true", help="夜のNY時間注意報を出す"
     )
+    ap.add_argument(
+        "--watch", action="store_true", help="毎時見張り(事象があった時だけ出力)"
+    )
     args = ap.parse_args()
 
     from .report import build_evening_report
+
+    if args.watch:
+        from .watch import run_watch
+
+        errors: list[str] = []
+        text = run_watch(errors)
+        if errors:
+            print("watch errors: " + " / ".join(errors), file=sys.stderr)
+        if text is None:
+            print("(異常なし。通知なし)")
+            return
+        print(text)
+        if args.post:
+            post_discord(text)
+            print("\n[Discordに送信しました]", file=sys.stderr)
+        return
 
     if args.demo:
         from .demo_data import demo_payload

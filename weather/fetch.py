@@ -70,7 +70,9 @@ def _yahoo_chart(symbol: str, range_: str, interval: str) -> dict:
     result = data["chart"]["result"][0]
     ts = result["timestamp"]
     q = result["indicators"]["quote"][0]
-    out: dict = {"dates": [], "open": [], "high": [], "low": [], "close": []}
+    out: dict = {
+        "dates": [], "ts": [], "open": [], "high": [], "low": [], "close": []
+    }
     for i, t in enumerate(ts):
         c = q["close"][i]
         if c is None:
@@ -78,6 +80,7 @@ def _yahoo_chart(symbol: str, range_: str, interval: str) -> dict:
         out["dates"].append(
             datetime.fromtimestamp(t, tz=timezone.utc).strftime("%Y-%m-%d")
         )
+        out["ts"].append(int(t))
         out["close"].append(c)
         out["open"].append(q["open"][i] if q["open"][i] is not None else c)
         out["high"].append(q["high"][i] if q["high"][i] is not None else c)
