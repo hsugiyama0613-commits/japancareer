@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import math
+import sys
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -187,7 +188,11 @@ def build_report(data: dict, now: datetime | None = None, demo: bool = False) ->
     lines.append("")
     lines.append("※方向(上下)は言いません。混み具合等は検証前の参考情報です。")
 
-    if data.get("errors"):
-        lines.append("⚠️ 取得エラー: " + " / ".join(data["errors"]))
+    errs = data.get("errors") or []
+    if errs:
+        # 通知には短い一言だけ。詳細はActionsのログにのみ出す
+        names = sorted({e.split("取得失敗", 1)[0] for e in errs})
+        lines.append(f"（{ '・'.join(names) } は本日取得できず。他は正常）")
+        print("fetch errors: " + " / ".join(errs), file=sys.stderr)
 
     return "\n".join(lines)
