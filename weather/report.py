@@ -138,11 +138,14 @@ def build_report(data: dict, now: datetime | None = None, demo: bool = False) ->
 
     gld_line = ""
     if gld:
-        arrow = "流入" if gld["change_5d"] >= 0 else "流出"
-        gld_line = (
-            f"・金ETFマネー: 直近5日 {gld['change_5d']:+.1f}t の{arrow}"
-            f"（保有{gld['tonnes']:.0f}t / {gld['date']}時点）"
-        )
+        if gld.get("change_5d") is None:
+            gld_line = f"・金ETF保有: {gld['tonnes']:.0f}t（{gld['date']}時点）"
+        else:
+            arrow = "流入" if gld["change_5d"] >= 0 else "流出"
+            gld_line = (
+                f"・金ETFマネー: 直近5日 {gld['change_5d']:+.1f}t の{arrow}"
+                f"（保有{gld['tonnes']:.0f}t / {gld['date']}時点）"
+            )
 
     # --- ヒゲ注意ゾーン ---
     zone_lines: list[str] = []

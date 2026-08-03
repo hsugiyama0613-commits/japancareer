@@ -25,15 +25,23 @@ COT_URL = (
     "?cftc_contract_market_code=088691"
     "&$order=report_date_as_yyyy_mm_dd%20DESC&$limit=1100"
 )
-GLD_URL = "https://www.spdrgoldshares.com/assets/dynamic/GLD/GLD_US_archive_EN.csv"
+# 2026年初頭のサイト刷新で旧CSVは廃止。現行は公式API（XLSX全履歴 / JSON当日値）
+GLD_XLSX_URL = (
+    "https://api.spdrgoldshares.com/api/v1/historical-archive"
+    "?product=gld&exchange=NYSE&lang=en"
+)
+GLD_JSON_URL = (
+    "https://api.spdrgoldshares.com/api/v1/data?product=gld&exchange=nyse&lang=en"
+)
 FF_CAL_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
 
 
-def _get(url: str, tries: int = 3) -> bytes:
+def _get(url: str, tries: int = 3, headers: dict | None = None) -> bytes:
     last: Exception | None = None
+    hdrs = {"User-Agent": UA, **(headers or {})}
     for i in range(tries):
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": UA})
+            req = urllib.request.Request(url, headers=hdrs)
             with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
                 return resp.read()
         except Exception as e:  # noqa: BLE001
@@ -182,41 +190,58 @@ def fetch_cot(errors: list[str]) -> dict | None:
 
 
 def fetch_gld(errors: list[str]) -> dict | None:
-    """GLD（最大の金ETF）の保有トン数。日次CSV全履歴。
+    """GLD（最大の金ETF）の保有トン数。
 
-    CSVの先頭に前置き行があるため、ヘッダー行を 'Tonnes' 含有で探す。
+    第一候補: 公式APIのXLSX全履歴（2004年〜、Tonnes列=10列目）。
+    ブラウザ相当のOrigin/Referer必須（無いとPDFにすり替えられる）。
+    第二候補: 公式APIのJSON当日値（履歴なし→前週比は出せない）。
     """
+    hdrs = {
+        "Accept": (
+            "application/vnd.openxmlformats-officedocument."
+            "spreadsheetml.sheet,*/*"
+        ),
+        "Origin": "https://www.spdrgoldshares.com",
+        "Referer": "https://www.spdrgoldshares.com/usa/historical-data/",
+    }
     try:
-        text = _get(GLD_URL).decode("utf-8", "replace")
-        lines = text.splitlines()
-        header_i = next(
-            (i for i, ln in enumerate(lines) if "tonnes" in ln.lower()), None
-        )
-        if header_i is None:
-            raise ValueError(f"'tonnes'列が見つからない (body: {_head(text)})")
-        rows = list(csv.reader(io.StringIO("\n".join(lines[header_i:]))))
-        header = [h.strip().lower() for h in rows[0]]
-        t_col = next(i for i, h in enumerate(header) if "tonnes" in h)
-        series = []
-        for r in rows[1:]:
-            if len(r) <= t_col:
+        raw = _get(GLD_XLSX_URL, headers=hdrs)
+        if raw[:4] == b"%PDF":
+            raise ValueError("PDFが返却された（ヘッダー不足の可能性）")
+        from openpyxl import load_workbook  # Actionsでのみ必要な依存
+
+        wb = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
+        ws = wb["US GLD Historical Archive"]
+        series: list[tuple[str, float]] = []
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if not row or row[0] is None or len(row) < 10:
                 continue
-            try:
-                series.append((r[0].strip(), float(r[t_col].replace(",", ""))))
-            except ValueError:
-                continue
+            tonnes = row[9]
+            if isinstance(tonnes, (int, float)):  # 休場日は文字列なので除外
+                series.append((str(row[0])[:11], float(tonnes)))
         if len(series) < 6:
-            raise ValueError("too few rows")
+            raise ValueError(f"rows too few: {len(series)}")
         latest_d, latest_v = series[-1]
-        week_ago_v = series[-6][1]
         return {
             "date": latest_d,
             "tonnes": latest_v,
-            "change_5d": latest_v - week_ago_v,
+            "change_5d": latest_v - series[-6][1],
         }
-    except Exception as e:  # noqa: BLE001
-        errors.append(f"GLD取得失敗: {type(e).__name__}: {e}")
-        return None
+    except Exception as e_xlsx:  # noqa: BLE001
+        try:
+            data = json.loads(_get(GLD_JSON_URL).decode("utf-8", "replace"))
+            node = data["data"]["total_tonnes"]
+            return {
+                "date": str(node.get("date", "?")),
+                "tonnes": float(str(node["value"]).replace(",", "")),
+                "change_5d": None,
+            }
+        except Exception as e:  # noqa: BLE001
+            errors.append(
+                f"GLD取得失敗: xlsx={type(e_xlsx).__name__}:{e_xlsx} / "
+                f"json={type(e).__name__}:{e}"
+            )
+            return None
 
 
 def fetch_calendar(errors: list[str]) -> list[dict] | None:
