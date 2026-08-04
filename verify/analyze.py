@@ -128,7 +128,9 @@ def h7(d: pd.DataFrame, day: pd.DataFrame, by_date: dict) -> dict:
         else:
             hit = post.index[post["high"] >= fri_close]
         fill_ts = hit[0] if len(hit) else None
-        fill_mon = fill_ts is not None and fill_ts.date() <= cur.date()
+        # 月曜中=日本時間の月曜(金曜+3日)までに埋めたか
+        fill_mon = fill_ts is not None and (
+            fill_ts.tz_convert("Asia/Tokyo").date() - prev.date()).days <= 3
         hours = ((fill_ts - post.index[0]).total_seconds() / 3600) if fill_ts is not None else None
         # 定義B: 金曜の高値/安値と週明けの間の「真空地帯」。埋め=金曜高値(上窓)/安値(下窓)タッチ
         if open0 > fri_high:
@@ -138,7 +140,8 @@ def h7(d: pd.DataFrame, day: pd.DataFrame, by_date: dict) -> dict:
         else:
             void_usd, hitB = None, None
         fillB_ts = hitB[0] if (hitB is not None and len(hitB)) else None
-        fillB_mon = fillB_ts is not None and fillB_ts.date() <= cur.date()
+        fillB_mon = fillB_ts is not None and (
+            fillB_ts.tz_convert("Asia/Tokyo").date() - prev.date()).days <= 3
         hoursB = ((fillB_ts - post.index[0]).total_seconds() / 3600) if fillB_ts is not None else None
         res.append({"date": str(cur.date()), "gap_usd": round(gap, 2),
                     "gap_pct": round(gap_pct, 3),
