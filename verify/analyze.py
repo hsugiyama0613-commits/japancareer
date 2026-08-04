@@ -108,6 +108,8 @@ def h7(d: pd.DataFrame, day: pd.DataFrame, by_date: dict) -> dict:
         if fri_bars is None or fri_bars.empty:
             continue
         fri_close = float(fri_bars["close"].iloc[-1])
+        fri_high = float(fri_bars["high"].max())
+        fri_low = float(fri_bars["low"].min())
         fri_end = fri_bars.index[-1]
         from datetime import timedelta as _td
         cand = [prev.date() + _td(days=k) for k in range(1, 8)]  # 5営業日分
@@ -118,13 +120,23 @@ def h7(d: pd.DataFrame, day: pd.DataFrame, by_date: dict) -> dict:
         post = post[post.index > fri_end]  # 週明け再開(日曜21-22UTC)以降
         if len(post) < 100:
             continue
-        gap = float(post["open"].iloc[0]) - fri_close
+        open0 = float(post["open"].iloc[0])
+        gap = open0 - fri_close
         gap_pct = gap / fri_close * 100
         if gap > 0:
             hit = post.index[post["low"] <= fri_close]
         else:
             hit = post.index[post["high"] >= fri_close]
         hours = ((hit[0] - post.index[0]).total_seconds() / 3600) if len(hit) else None
+        # 定義B: 金曜の高値/安値と週明けの間の「真空地帯」。埋め=金曜高値(上窓)/安値(下窓)タッチ
+        if open0 > fri_high:
+            void_usd, hitB = open0 - fri_high, post.index[post["low"] <= fri_high]
+        elif open0 < fri_low:
+            void_usd, hitB = fri_low - open0, post.index[post["high"] >= fri_low]
+        else:
+            void_usd, hitB = None, None
+        hoursB = ((hitB[0] - post.index[0]).total_seconds() / 3600) if (
+            hitB is not None and len(hitB)) else None
         res.append({"date": str(cur.date()), "gap_usd": round(gap, 2),
                     "gap_pct": round(gap_pct, 3),
                     "abs_gap_pct": abs(gap_pct),
@@ -132,6 +144,13 @@ def h7(d: pd.DataFrame, day: pd.DataFrame, by_date: dict) -> dict:
                     "fill_48h": hours is not None and hours <= 48,
                     "fill_5d": hours is not None,
                     "hours_to_fill": round(hours, 1) if hours is not None else None,
+                    "void_usd": round(void_usd, 2) if void_usd is not None else None,
+                    "void_pct": (abs(void_usd / fri_close * 100)
+                                 if void_usd is not None else None),
+                    "voidB_24h": (hoursB is not None and hoursB <= 24)
+                    if void_usd is not None else None,
+                    "voidB_5d": (hoursB is not None) if void_usd is not None else None,
+                    "hoursB": round(hoursB, 1) if hoursB is not None else None,
                     "regime": regime_of(cur.year)})
     df = pd.DataFrame(res)
     if df.empty:
@@ -154,6 +173,30 @@ def h7(d: pd.DataFrame, day: pd.DataFrame, by_date: dict) -> dict:
     out["by_regime_24h埋め率"] = {
         r: {"n": warn_n(len(g)), "rate": round(float(g["fill_24h"].mean()), 3)}
         for r, g in df.groupby("regime")}
+    # --- 定義B: 金曜高安と週明けの間の真空地帯（チャート実務の「窓」） ---
+    vb = df[df["void_usd"].notna()].copy()
+    outB = {"定義": "窓=金曜の高値(上窓)/安値(下窓)と週明け始値の間の真空地帯。"
+                    "埋め=金曜高値/安値へのタッチ。金曜レンジ内で再開した週は窓なし",
+            "窓が発生した週": warn_n(len(vb)),
+            "窓なし(金曜レンジ内で再開)の週": int(len(df) - len(vb))}
+    if len(vb):
+        vb["bucketB"] = pd.cut(vb["void_pct"], [0, 0.1, 0.3, 0.6, 99],
+                               labels=["~0.1%", "0.1-0.3%", "0.3-0.6%", "0.6%~"])
+        for b, g in vb.groupby("bucketB", observed=True):
+            outB[str(b)] = {
+                "n": warn_n(len(g)),
+                "24h以内埋め率": round(float(g["voidB_24h"].mean()), 3),
+                "5営業日以内埋め率": round(float(g["voidB_5d"].mean()), 3),
+                "埋め所要中央値h": (
+                    round(float(g["hoursB"].dropna().median()), 1)
+                    if g["hoursB"].notna().any() else None),
+            }
+        outB["直近5件"] = [
+            {k: (None if isinstance(v, float) and np.isnan(v) else v)
+             for k, v in r.items()}
+            for r in vb.sort_values("date").tail(5)[
+                ["date", "void_usd", "hoursB"]].to_dict("records")]
+    out["定義B_高安基準の真空地帯"] = outB
     out["直近5件の実測"] = [
         {k: (None if isinstance(v, float) and np.isnan(v) else v)
          for k, v in r.items()}
