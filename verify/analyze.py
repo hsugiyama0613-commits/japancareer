@@ -67,6 +67,12 @@ def h3(d: pd.DataFrame) -> dict:
 
 
 # ---------- 日次集計（共通） ----------
+def group_by_date(d: pd.DataFrame) -> dict:
+    """d[d.index.date == X] の全走査をループ内で繰り返すと273万行×日数で
+    実行不能になるため、日付→バーの辞書を一度だけ作る。"""
+    return {date: g for date, g in d.groupby(d.index.date)}
+
+
 def daily(d: pd.DataFrame) -> pd.DataFrame:
     g = d.groupby(d.index.date)
     day = pd.DataFrame({
@@ -83,7 +89,7 @@ def daily(d: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------- H7: 週末ギャップ ----------
-def h7(d: pd.DataFrame, day: pd.DataFrame) -> dict:
+def h7(d: pd.DataFrame, day: pd.DataFrame, by_date: dict) -> dict:
     """金曜クローズ→週明け最初の気配のギャップと、週明けセッション内の埋め。
 
     週明けは日曜夜(UTC)に薄く再開するため、「金曜の最終バー」から
@@ -98,13 +104,18 @@ def h7(d: pd.DataFrame, day: pd.DataFrame) -> dict:
         if prev.weekday() != 4:  # 直前営業日が金曜=週末をまたぐ
             continue
         checked += 1
-        fri_bars = d[d.index.date == prev.date()]
-        if fri_bars.empty:
+        fri_bars = by_date.get(prev.date())
+        if fri_bars is None or fri_bars.empty:
             continue
         fri_close = float(fri_bars["close"].iloc[-1])
         fri_end = fri_bars.index[-1]
-        post = d[(d.index > fri_end)
-                 & (d.index.date <= cur.date())]  # 日曜夜+週明け初日
+        from datetime import timedelta as _td
+        cand = [prev.date() + _td(days=k) for k in range(1, 8)]  # 5営業日分
+        frames = [by_date[c] for c in cand if c in by_date]
+        if not frames:
+            continue
+        post = pd.concat(frames)
+        post = post[post.index > fri_end]  # 週明け再開(日曜21-22UTC)以降
         if len(post) < 100:
             continue
         gap = float(post["open"].iloc[0]) - fri_close
@@ -113,29 +124,41 @@ def h7(d: pd.DataFrame, day: pd.DataFrame) -> dict:
             hit = post.index[post["low"] <= fri_close]
         else:
             hit = post.index[post["high"] >= fri_close]
-        filled = len(hit) > 0
-        hours = ((hit[0] - post.index[0]).total_seconds() / 3600) if filled else None
-        res.append({"date": str(cur.date()), "gap_pct": gap_pct,
-                    "abs_gap_pct": abs(gap_pct), "filled_same_day": filled,
-                    "hours_to_fill": hours, "regime": regime_of(cur.year)})
+        hours = ((hit[0] - post.index[0]).total_seconds() / 3600) if len(hit) else None
+        res.append({"date": str(cur.date()), "gap_usd": round(gap, 2),
+                    "gap_pct": round(gap_pct, 3),
+                    "abs_gap_pct": abs(gap_pct),
+                    "fill_24h": hours is not None and hours <= 24,
+                    "fill_48h": hours is not None and hours <= 48,
+                    "fill_5d": hours is not None,
+                    "hours_to_fill": round(hours, 1) if hours is not None else None,
+                    "regime": regime_of(cur.year)})
     df = pd.DataFrame(res)
     if df.empty:
         return {"error": "no weekend gaps found", "mondays_checked": checked}
     out = {"n_total": int(len(df)), "mondays_checked": checked}
+    out["定義"] = ("窓=週明け再開の最初の気配(日曜21-22UTC=JST月曜6-7時) − 金曜最終終値。"
+                  "埋め=その後5営業日以内に金曜終値へタッチ。%は金曜終値比")
     df["bucket"] = pd.cut(df["abs_gap_pct"], [0, 0.1, 0.3, 0.6, 99],
                           labels=["~0.1%", "0.1-0.3%", "0.3-0.6%", "0.6%~"])
     for b, g in df.groupby("bucket", observed=True):
         out[str(b)] = {
             "n": warn_n(len(g)),
-            "fill_rate_same_day": round(float(g["filled_same_day"].mean()), 3),
-            "median_hours_to_fill": (
-                round(float(g["hours_to_fill"].dropna().median()), 2)
+            "24h以内埋め率": round(float(g["fill_24h"].mean()), 3),
+            "48h以内埋め率": round(float(g["fill_48h"].mean()), 3),
+            "5営業日以内埋め率": round(float(g["fill_5d"].mean()), 3),
+            "埋め所要中央値h": (
+                round(float(g["hours_to_fill"].dropna().median()), 1)
                 if g["hours_to_fill"].notna().any() else None),
         }
-    out["by_regime_fill_rate"] = {
-        r: {"n": warn_n(len(g)),
-            "fill_rate_same_day": round(float(g["filled_same_day"].mean()), 3)}
+    out["by_regime_24h埋め率"] = {
+        r: {"n": warn_n(len(g)), "rate": round(float(g["fill_24h"].mean()), 3)}
         for r, g in df.groupby("regime")}
+    out["直近5件の実測"] = [
+        {k: (None if isinstance(v, float) and np.isnan(v) else v)
+         for k, v in r.items()}
+        for r in df.sort_values("date").tail(5)[
+            ["date", "gap_usd", "gap_pct", "hours_to_fill"]].to_dict("records")]
     return out
 
 
@@ -181,7 +204,7 @@ def h8(d: pd.DataFrame) -> dict:
 
 
 # ---------- H9: NY前の消化率と、その後の追加変動 ----------
-def h9(d: pd.DataFrame, day: pd.DataFrame) -> dict:
+def h9(day: pd.DataFrame, by_date: dict) -> dict:
     """11:00 UTC(=夏20:00JST)時点の消化率 → その後の追加変動の分布。"""
     med_range = day["range"].rolling(60, min_periods=30).median().shift(1)
     res = []
@@ -189,7 +212,9 @@ def h9(d: pd.DataFrame, day: pd.DataFrame) -> dict:
         base = med_range.get(date)
         if base is None or np.isnan(base) or base <= 0:
             continue
-        g = d[d.index.date == date.date()]
+        g = by_date.get(date.date())
+        if g is None:
+            continue
         before = g[g.index.hour < 11]
         after = g[g.index.hour >= 11]
         if len(before) < 200 or len(after) < 100:
@@ -222,7 +247,7 @@ def h9(d: pd.DataFrame, day: pd.DataFrame) -> dict:
 
 
 # ---------- H10: レンジブレイクのだまし率 ----------
-def h10(d: pd.DataFrame, day: pd.DataFrame) -> dict:
+def h10(day: pd.DataFrame, by_date: dict) -> dict:
     """前日高値/安値のブレイク後、規定時間内にレンジ内へ戻る割合（=だまし）。
 
     - ブレイク: 当日中に初めて前日高値を上抜く（または前日安値を下抜く）瞬間
@@ -238,8 +263,8 @@ def h10(d: pd.DataFrame, day: pd.DataFrame) -> dict:
         rng = ph - pl
         if rng <= 0:
             continue
-        g = d[d.index.date == cur.date()]
-        if len(g) < 300:
+        g = by_date.get(cur.date())
+        if g is None or len(g) < 300:
             continue
         for side, level in (("up", ph), ("dn", pl)):
             if side == "up":
@@ -489,14 +514,15 @@ def h12_14(d: pd.DataFrame) -> dict:
 def main() -> None:
     d = load()
     day = daily(d)
+    by_date = group_by_date(d)
     stats = {
         "meta": {"bars": int(len(d)), "days": int(len(day)),
                  "span": [str(d.index[0]), str(d.index[-1])]},
         "H3_時刻別ボラ": h3(d),
-        "H7_週末ギャップ": h7(d, day),
+        "H7_週末ギャップ": h7(d, day, by_date),
         "H8_セッション効率": h8(d),
-        "H9_消化率と追加変動": h9(d, day),
-        "H10_ブレイクだまし率": h10(d, day),
+        "H9_消化率と追加変動": h9(day, by_date),
+        "H10_ブレイクだまし率": h10(day, by_date),
         "H11_両方向刈られ率": h11(d),
         "H12-14_4H_ブレイク構造": h12_14(d),
     }
