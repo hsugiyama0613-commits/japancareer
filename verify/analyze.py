@@ -589,9 +589,13 @@ def main() -> None:
     d = load()
     day = daily(d)
     by_date = group_by_date(d)
+    from datetime import datetime, timezone
+    age_days = (datetime.now(timezone.utc) - d.index[-1].to_pydatetime()).days
     stats = {
         "meta": {"bars": int(len(d)), "days": int(len(day)),
-                 "span": [str(d.index[0]), str(d.index[-1])]},
+                 "span": [str(d.index[0]), str(d.index[-1])],
+                 "データ鮮度警告": (f"⚠️最終バーが{age_days}日前。末尾欠損の疑い"
+                                    if age_days > 4 else "OK(最新)")},
         "H3_時刻別ボラ": h3(d),
         "H7_週末ギャップ": h7(d, day, by_date),
         "H8_セッション効率": h8(d),

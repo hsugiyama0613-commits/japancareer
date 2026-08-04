@@ -49,12 +49,24 @@ jobs:
               echo "=== $Y cached, skip"; continue
             fi
             echo "=== $S .. $E"
-            rm -f data/dl/xauusd-m1-*"$Y"*.csv 2>/dev/null || true
+            mkdir -p data/tmp && rm -f data/tmp/*.csv
             if npx --yes dukascopy-node -i xauusd -from "$S" -to "$E" \
-              -t m1 -f csv -dir "data/dl" -r 10 -rp 5000 -bs 3; then
+              -t m1 -f csv -dir "data/tmp" -r 10 -rp 5000 -bs 3; then
+              NEWF=$(ls data/tmp/*.csv 2>/dev/null | head -1)
+              OLDF=$(ls data/dl/xauusd-m1-*"$Y"*.csv 2>/dev/null | head -1)
+              NEWN=$(wc -l < "$NEWF" 2>/dev/null || echo 0)
+              OLDN=$(wc -l < "$OLDF" 2>/dev/null || echo 0)
+              # 既存より小さいファイルで上書きしない(部分失敗による黙った劣化を防止)
+              if [ "$NEWN" -gt "$OLDN" ]; then
+                [ -n "$OLDF" ] && rm -f "$OLDF"
+                mv "$NEWF" data/dl/
+                echo "updated $Y: $OLDN -> $NEWN lines"
+              else
+                echo "kept existing $Y: new=$NEWN <= old=$OLDN"
+              fi
               touch "data/dl/.done-$Y"
             else
-              echo "!! $Y failed (continue)"
+              echo "!! $Y failed (continue, keeping cached file)"
             fi
             sleep 45
           done
