@@ -158,6 +158,7 @@ def build_report(data: dict, now: datetime | None = None, demo: bool = False) ->
         names = [z[0] for z in zones[:4]]
         zone_lines.append("・" + " / ".join(names))
         zone_lines.append("　→ この直外に損切りを置かない。接近時はヒゲ想定")
+        zone_lines.append("　※前日高安は当方データ基準。MT5とは数ドルずれるため帯として扱うこと")
     else:
         zone_lines.append("・価格取得失敗のため算出不可")
 

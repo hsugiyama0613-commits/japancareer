@@ -123,14 +123,22 @@ def h7(d: pd.DataFrame, day: pd.DataFrame, by_date: dict) -> dict:
         open0 = float(post["open"].iloc[0])
         gap = open0 - fri_close
         gap_pct = gap / fri_close * 100
+        # フィード間誤差の帯(校正前の保守値0.1%)。帯を越えた到達のみ「確実」
+        band = fri_close * 0.001
         if gap > 0:
             hit = post.index[post["low"] <= fri_close]
+            hit_sure = post.index[post["low"] <= fri_close - band]
         else:
             hit = post.index[post["high"] >= fri_close]
+            hit_sure = post.index[post["high"] >= fri_close + band]
         fill_ts = hit[0] if len(hit) else None
         # 月曜中=日本時間の月曜(金曜+3日)までに埋めたか
         fill_mon = fill_ts is not None and (
             fill_ts.tz_convert("Asia/Tokyo").date() - prev.date()).days <= 3
+        # 確実判定: 誤差帯(±0.1%)を突き抜けた場合のみ。帯内で止まった週は「保留」
+        sure_ts = hit_sure[0] if len(hit_sure) else None
+        fill_mon_sure = sure_ts is not None and (
+            sure_ts.tz_convert("Asia/Tokyo").date() - prev.date()).days <= 3
         hours = ((fill_ts - post.index[0]).total_seconds() / 3600) if fill_ts is not None else None
         # 定義B: 金曜の高値/安値と週明けの間の「真空地帯」。埋め=金曜高値(上窓)/安値(下窓)タッチ
         if open0 > fri_high:
@@ -147,6 +155,9 @@ def h7(d: pd.DataFrame, day: pd.DataFrame, by_date: dict) -> dict:
                     "gap_pct": round(gap_pct, 3),
                     "abs_gap_pct": abs(gap_pct),
                     "fill_mon": fill_mon,
+                    "fill_mon_sure": fill_mon_sure,
+                    "fri_close": round(fri_close, 2),
+                    "week_open": round(open0, 2),
                     "filled_at": str(fill_ts) if fill_ts is not None else None,
                     "fillB_mon": fillB_mon if void_usd is not None else None,
                     "filledB_at": str(fillB_ts) if fillB_ts is not None else None,
@@ -174,6 +185,8 @@ def h7(d: pd.DataFrame, day: pd.DataFrame, by_date: dict) -> dict:
         out[str(b)] = {
             "n": warn_n(len(g)),
             "月曜中埋め率(カレンダー判定)": round(float(g["fill_mon"].mean()), 3),
+            "月曜中確実埋め率(誤差帯0.1%超過のみ)": round(
+                float(g["fill_mon_sure"].mean()), 3),
             "24h以内埋め率": round(float(g["fill_24h"].mean()), 3),
             "48h以内埋め率": round(float(g["fill_48h"].mean()), 3),
             "5営業日以内埋め率": round(float(g["fill_5d"].mean()), 3),
@@ -213,8 +226,13 @@ def h7(d: pd.DataFrame, day: pd.DataFrame, by_date: dict) -> dict:
         {k: (None if isinstance(v, float) and np.isnan(v) else v)
          for k, v in r.items()}
         for r in df.sort_values("date").tail(5)[
-            ["date", "gap_usd", "gap_pct", "fill_mon", "filled_at",
-             "fillB_mon", "filledB_at"]].to_dict("records")]
+            ["date", "fri_close", "week_open", "gap_usd", "fill_mon",
+             "fill_mon_sure", "filled_at", "fillB_mon",
+             "filledB_at"]].to_dict("records")]
+    out["校正メモ"] = (
+        "fri_close/week_openは当方(Dukascopy)の値。ユーザーのチャートの同値と"
+        "並べたペアが溜まり次第、誤差帯0.1%を実測値に置換する。"
+        "実測ペア1件目(2026-08-02週): 当方gap+30.06 vs ユーザーGOLD# +37.77 (差-7.7USD)")
     return out
 
 
