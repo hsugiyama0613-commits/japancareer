@@ -221,6 +221,88 @@ def h9(d: pd.DataFrame, day: pd.DataFrame) -> dict:
     return out
 
 
+# ---------- H10: レンジブレイクのだまし率 ----------
+def h10(d: pd.DataFrame, day: pd.DataFrame) -> dict:
+    """前日高値/安値のブレイク後、規定時間内にレンジ内へ戻る割合（=だまし）。
+
+    - ブレイク: 当日中に初めて前日高値を上抜く（または前日安値を下抜く）瞬間
+    - だまし: そのブレイク水準を、判定時間内に終値ベースで逆方向へ抜け戻る
+    - 併せて「その後の最大伸び」も出し、だましでない場合の伸び代を見る
+    """
+    horizons = {"30分": 30, "1時間": 60, "4時間": 240}
+    rows = []
+    days = day.index.to_list()
+    for i in range(1, len(days)):
+        prev, cur = days[i - 1], days[i]
+        ph, pl = day.loc[prev, "high"], day.loc[prev, "low"]
+        rng = ph - pl
+        if rng <= 0:
+            continue
+        g = d[d.index.date == cur.date()]
+        if len(g) < 300:
+            continue
+        for side, level in (("up", ph), ("dn", pl)):
+            if side == "up":
+                idx = g.index[g["high"] > level]
+            else:
+                idx = g.index[g["low"] < level]
+            if len(idx) == 0:
+                continue
+            t0 = idx[0]
+            after = g[g.index > t0]
+            if len(after) < 60:
+                continue  # 判定余地のない終盤ブレイクは除外
+            row = {
+                "date": str(cur.date()),
+                "side": side,
+                "hour_utc": int(t0.hour),
+                "regime": regime_of(cur.year),
+            }
+            for hname, mins in horizons.items():
+                w = after[after.index <= t0 + pd.Timedelta(minutes=mins)]
+                if len(w) < 5:
+                    row[hname] = None
+                    continue
+                if side == "up":
+                    row[hname] = bool((w["close"] < level).any())
+                    row[f"伸び_{hname}"] = float(w["high"].max() - level) / rng
+                else:
+                    row[hname] = bool((w["close"] > level).any())
+                    row[f"伸び_{hname}"] = float(level - w["low"].min()) / rng
+            rows.append(row)
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return {"error": "no breakouts"}
+
+    def rate(g, h):
+        s = g[h].dropna()
+        return round(float(s.mean()), 3) if len(s) else None
+
+    out = {
+        "note": "だまし=ブレイク後、判定時間内に終値がブレイク水準の逆側へ戻る。"
+                "伸び=ブレイク水準からの最大到達幅÷前日レンジ",
+        "n_total": int(len(df)),
+        "全体": {h: {"だまし率": rate(df, h), "n": warn_n(int(df[h].notna().sum()))}
+                for h in horizons},
+        "方向別(1時間)": {
+            s: {"だまし率": rate(g, "1時間"), "n": warn_n(len(g))}
+            for s, g in df.groupby("side")},
+        "レジーム別(1時間)": {
+            r: {"だまし率": rate(g, "1時間"), "n": warn_n(len(g))}
+            for r, g in df.groupby("regime")},
+        "ブレイク時刻別(1時間, UTC)": {
+            int(h): {"だまし率": rate(g, "1時間"), "n": warn_n(len(g))}
+            for h, g in df.groupby("hour_utc") if len(g) >= 30},
+        "伸び幅quartiles(4時間, 前日レンジ比)": q(df["伸び_4時間"].dropna()),
+    }
+    # だましでなかった場合の伸び（4時間）
+    ok = df[df["4時間"] == False]  # noqa: E712
+    if len(ok):
+        out["だましでない場合の伸び(4時間)"] = {
+            "n": warn_n(len(ok)), "quartiles": q(ok["伸び_4時間"].dropna())}
+    return out
+
+
 def main() -> None:
     d = load()
     day = daily(d)
@@ -231,6 +313,7 @@ def main() -> None:
         "H7_週末ギャップ": h7(d, day),
         "H8_セッション効率": h8(d),
         "H9_消化率と追加変動": h9(d, day),
+        "H10_ブレイクだまし率": h10(d, day),
     }
     os.makedirs(OUT_DIR, exist_ok=True)
     with open(f"{OUT_DIR}/stats.json", "w") as f:
