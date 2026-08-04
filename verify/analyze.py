@@ -303,6 +303,75 @@ def h10(d: pd.DataFrame, day: pd.DataFrame) -> dict:
     return out
 
 
+# ---------- H11: 両方向刈られ率（悪い場所でのエントリー） ----------
+def h11(d: pd.DataFrame) -> dict:
+    """ある地点で買いと売りを同じ損切り幅で両方入れたと仮定し、
+    両方が判定時間内に損切りに達する確率（=その場所の悪さ）を測る。
+
+    方向を一切仮定しないため「どっちに賭けても刈られる場所か」を純粋に測れる。
+    レンジ内位置・レンジ幅/ノイズ比・損切り幅の3条件で層別する。
+    """
+    W, H = 240, 240  # 参照レンジ4時間 / 判定4時間
+    high, low, close = d["high"], d["low"], d["close"]
+    rh = high.rolling(W).max()
+    rl = low.rolling(W).min()
+    width = rh - rl
+    hr60 = high.rolling(60).max() - low.rolling(60).min()  # 直近1時間のノイズ
+    # 未来H分の高安（時間ギャップを跨ぐサンプルは後で除外）
+    fut_h = high.iloc[::-1].rolling(H, min_periods=H).max().iloc[::-1].shift(-1)
+    fut_l = low.iloc[::-1].rolling(H, min_periods=H).min().iloc[::-1].shift(-1)
+    span_ok = (pd.Series(d.index, index=d.index).shift(-H) - pd.Series(d.index, index=d.index)
+               ) <= pd.Timedelta(minutes=H + 30)
+
+    base = pd.DataFrame({
+        "close": close, "pos": (close - rl) / width,
+        "w_ratio": width / hr60, "hr60": hr60,
+        "fut_h": fut_h, "fut_l": fut_l,
+        "year": d.index.year, "minute": d.index.minute,
+    })
+    base = base[span_ok & (base["minute"] % 30 == 0)].dropna()
+    base = base[(base["hr60"] > 0) & base["pos"].between(0, 1)]
+    if base.empty:
+        return {"error": "no samples"}
+    base["regime"] = base["year"].map(regime_of)
+    base["pos_b"] = pd.cut(base["pos"], [0, .2, .4, .6, .8, 1.0],
+                           labels=["下端0-20%", "20-40%", "中央40-60%",
+                                   "60-80%", "上端80-100%"])
+    base["w_b"] = pd.cut(base["w_ratio"], [0, 2, 3, 4, 99],
+                         labels=["狭い(〜2倍)", "2-3倍", "3-4倍", "広い(4倍〜)"])
+
+    out = {
+        "note": "参照レンジ4時間・判定4時間。損切り幅は直近1時間の値幅(hr60)の倍率で指定。"
+                "両方向刈られ=買いも売りも損切り到達。サンプルは重複するため実効nは表示より小さい",
+        "n_samples": int(len(base)),
+    }
+    for k in (0.5, 1.0):
+        s = base["hr60"] * k
+        both = ((base["fut_l"] <= base["close"] - s)
+                & (base["fut_h"] >= base["close"] + s))
+        none = ((base["fut_l"] > base["close"] - s)
+                & (base["fut_h"] < base["close"] + s))
+        key = f"損切り={k}×直近1h値幅"
+        out[key] = {
+            "全体": {"両方向刈られ率": round(float(both.mean()), 3),
+                     "どちらも無事率": round(float(none.mean()), 3),
+                     "n": warn_n(int(len(both)))},
+            "レンジ内位置別": {
+                str(b): {"両方向刈られ率": round(float(both[base["pos_b"] == b].mean()), 3),
+                         "n": warn_n(int((base["pos_b"] == b).sum()))}
+                for b in base["pos_b"].cat.categories},
+            "レンジ幅/ノイズ別": {
+                str(b): {"両方向刈られ率": round(float(both[base["w_b"] == b].mean()), 3),
+                         "n": warn_n(int((base["w_b"] == b).sum()))}
+                for b in base["w_b"].cat.categories},
+            "レジーム別": {
+                r: {"両方向刈られ率": round(float(both[base["regime"] == r].mean()), 3),
+                    "n": warn_n(int((base["regime"] == r).sum()))}
+                for r in sorted(base["regime"].unique())},
+        }
+    return out
+
+
 def main() -> None:
     d = load()
     day = daily(d)
@@ -314,6 +383,7 @@ def main() -> None:
         "H8_セッション効率": h8(d),
         "H9_消化率と追加変動": h9(d, day),
         "H10_ブレイクだまし率": h10(d, day),
+        "H11_両方向刈られ率": h11(d),
     }
     os.makedirs(OUT_DIR, exist_ok=True)
     with open(f"{OUT_DIR}/stats.json", "w") as f:
