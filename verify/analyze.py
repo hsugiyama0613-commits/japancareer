@@ -127,7 +127,9 @@ def h7(d: pd.DataFrame, day: pd.DataFrame, by_date: dict) -> dict:
             hit = post.index[post["low"] <= fri_close]
         else:
             hit = post.index[post["high"] >= fri_close]
-        hours = ((hit[0] - post.index[0]).total_seconds() / 3600) if len(hit) else None
+        fill_ts = hit[0] if len(hit) else None
+        fill_mon = fill_ts is not None and fill_ts.date() <= cur.date()
+        hours = ((fill_ts - post.index[0]).total_seconds() / 3600) if fill_ts is not None else None
         # 定義B: 金曜の高値/安値と週明けの間の「真空地帯」。埋め=金曜高値(上窓)/安値(下窓)タッチ
         if open0 > fri_high:
             void_usd, hitB = open0 - fri_high, post.index[post["low"] <= fri_high]
@@ -135,11 +137,16 @@ def h7(d: pd.DataFrame, day: pd.DataFrame, by_date: dict) -> dict:
             void_usd, hitB = fri_low - open0, post.index[post["high"] >= fri_low]
         else:
             void_usd, hitB = None, None
-        hoursB = ((hitB[0] - post.index[0]).total_seconds() / 3600) if (
-            hitB is not None and len(hitB)) else None
+        fillB_ts = hitB[0] if (hitB is not None and len(hitB)) else None
+        fillB_mon = fillB_ts is not None and fillB_ts.date() <= cur.date()
+        hoursB = ((fillB_ts - post.index[0]).total_seconds() / 3600) if fillB_ts is not None else None
         res.append({"date": str(cur.date()), "gap_usd": round(gap, 2),
                     "gap_pct": round(gap_pct, 3),
                     "abs_gap_pct": abs(gap_pct),
+                    "fill_mon": fill_mon,
+                    "filled_at": str(fill_ts) if fill_ts is not None else None,
+                    "fillB_mon": fillB_mon if void_usd is not None else None,
+                    "filledB_at": str(fillB_ts) if fillB_ts is not None else None,
                     "fill_24h": hours is not None and hours <= 24,
                     "fill_48h": hours is not None and hours <= 48,
                     "fill_5d": hours is not None,
@@ -163,6 +170,7 @@ def h7(d: pd.DataFrame, day: pd.DataFrame, by_date: dict) -> dict:
     for b, g in df.groupby("bucket", observed=True):
         out[str(b)] = {
             "n": warn_n(len(g)),
+            "月曜中埋め率(カレンダー判定)": round(float(g["fill_mon"].mean()), 3),
             "24h以内埋め率": round(float(g["fill_24h"].mean()), 3),
             "48h以内埋め率": round(float(g["fill_48h"].mean()), 3),
             "5営業日以内埋め率": round(float(g["fill_5d"].mean()), 3),
@@ -185,6 +193,7 @@ def h7(d: pd.DataFrame, day: pd.DataFrame, by_date: dict) -> dict:
         for b, g in vb.groupby("bucketB", observed=True):
             outB[str(b)] = {
                 "n": warn_n(len(g)),
+                "月曜中埋め率(カレンダー判定)": round(float(g["fillB_mon"].mean()), 3),
                 "24h以内埋め率": round(float(g["voidB_24h"].mean()), 3),
                 "5営業日以内埋め率": round(float(g["voidB_5d"].mean()), 3),
                 "埋め所要中央値h": (
@@ -201,7 +210,8 @@ def h7(d: pd.DataFrame, day: pd.DataFrame, by_date: dict) -> dict:
         {k: (None if isinstance(v, float) and np.isnan(v) else v)
          for k, v in r.items()}
         for r in df.sort_values("date").tail(5)[
-            ["date", "gap_usd", "gap_pct", "hours_to_fill"]].to_dict("records")]
+            ["date", "gap_usd", "gap_pct", "fill_mon", "filled_at",
+             "fillB_mon", "filledB_at"]].to_dict("records")]
     return out
 
 
