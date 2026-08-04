@@ -29,10 +29,12 @@ def _rounds(price: float, radius: float) -> list[float]:
 def run_watch(errors: list[str]) -> str | None:
     intr = daily = gvz_val = None
     last_err: Exception | None = None
+    used_symbol = None
     for symbol in ("XAUUSD%3DX", "GC%3DF"):
         try:
             intr = _yahoo_chart(symbol, "1d", "5m")
             daily = _yahoo_chart(symbol, "5d", "1d")
+            used_symbol = symbol
             break
         except Exception as e:  # noqa: BLE001
             last_err = e
@@ -52,10 +54,12 @@ def run_watch(errors: list[str]) -> str | None:
         return None
 
     alerts: list[str] = []
+    is_futures = used_symbol is not None and "XAUUSD" not in used_symbol
 
-    # --- W1: ゾーン初タッチ ---
-    zones = [(f"{lv:.0f}(キリ番)", lv) for lv in _rounds(close, close * 0.012)]
-    if len(daily["close"]) >= 2:  # 末尾は当日進行中の足なので前日=-2
+    # --- W1: ゾーン初タッチ（先物のみの日は価格の線が乖離するためスキップ） ---
+    zones = [] if is_futures else [
+        (f"{lv:.0f}(キリ番)", lv) for lv in _rounds(close, close * 0.012)]
+    if not is_futures and len(daily["close"]) >= 2:  # 末尾は当日進行中、前日=-2
         zones.append((f"{daily['high'][-2]:.0f}(前日高値)", daily["high"][-2]))
         zones.append((f"{daily['low'][-2]:.0f}(前日安値)", daily["low"][-2]))
     for name, lv in zones:

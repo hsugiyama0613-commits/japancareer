@@ -149,7 +149,14 @@ def build_report(data: dict, now: datetime | None = None, demo: bool = False) ->
 
     # --- ヒゲ注意ゾーン ---
     zone_lines: list[str] = []
-    if price:
+    if price and price.get("symbol") == "futures(GC=F)":
+        # 先物はスポットとベーシス分(数十ドルまで)乖離するため価格の線は出さない
+        zone_lines.append("・本日はスポット価格が取得できず先物のみ。")
+        zone_lines.append("　価格の線は乖離があるため非表示（キリ番はチャートで確認を）")
+        price_zones_ok = False
+    else:
+        price_zones_ok = True
+    if price and price_zones_ok:
         radius = price["close"] * 0.012
         zones = [(f"{lv:.0f}(キリ番)", lv) for lv in _round_levels(price["close"], radius)]
         zones += [(f"{price['high']:.0f}(前日高値)", price["high"]),
@@ -159,7 +166,7 @@ def build_report(data: dict, now: datetime | None = None, demo: bool = False) ->
         zone_lines.append("・" + " / ".join(names))
         zone_lines.append("　→ この直外に損切りを置かない。接近時はヒゲ想定")
         zone_lines.append("　※前日高安は当方データ基準。MT5とは数ドルずれるため帯として扱うこと")
-    else:
+    elif price is None:
         zone_lines.append("・価格取得失敗のため算出不可")
 
     icon, label = _weather(events_today, vol_pct, crowd_pct)
@@ -261,7 +268,9 @@ def build_evening_report(data: dict, now: datetime | None = None, demo: bool = F
     # --- NY時間のヒゲ注意ゾーン（本日高安＋キリ番で更新） ---
     lines.append("")
     lines.append("【NY時間のヒゲ注意ゾーン】")
-    if intra:
+    if intra and intra.get("symbol") == "futures(GC=F)":
+        lines.append("・スポット取得不可のため先物のみ。価格の線は乖離があるため非表示")
+    elif intra:
         radius = intra["close"] * 0.012
         zones = [(f"{intra['high']:.0f}(本日高値)", intra["high"]),
                  (f"{intra['low']:.0f}(本日安値)", intra["low"])]

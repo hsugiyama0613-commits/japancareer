@@ -139,6 +139,7 @@ def fetch_price(errors: list[str]) -> dict | None:
                 "high": ch["high"][j],
                 "low": ch["low"][j],
                 "close": ch["close"][i],  # 現在値は最新
+                "symbol": "spot" if "XAUUSD" in symbol else "futures(GC=F)",
             }
         except Exception as e:  # noqa: BLE001
             last_err = e
@@ -306,6 +307,7 @@ def fetch_intraday(errors: list[str]) -> dict | None:
                 "low": min(ch["low"]),
                 "efficiency": (abs(c - o) / path) if path > 0 else None,
                 "n_bars": len(closes),
+                "symbol": "spot" if "XAUUSD" in symbol else "futures(GC=F)",
             }
         except Exception as e:  # noqa: BLE001
             last_err = e
