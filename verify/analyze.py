@@ -372,6 +372,120 @@ def h11(d: pd.DataFrame) -> dict:
     return out
 
 
+# ---------- H12/H13/H14: 4時間足のレンジブレイク構造 ----------
+def _h4(d: pd.DataFrame) -> pd.DataFrame:
+    g = d.resample("4h")
+    bars = pd.DataFrame({
+        "open": g["open"].first(), "high": g["high"].max(),
+        "low": g["low"].min(), "close": g["close"].last(),
+        "n": g["close"].count(),
+    }).dropna()
+    return bars[bars["n"] >= 60]  # 薄い/祝日バーを除外
+
+
+def h12_14(d: pd.DataFrame) -> dict:
+    """4時間足のレンジブレイクを実体抜け/ヒゲ戻しに分類し、その後を測る。
+
+    - 参照レンジ: 直前6本(24時間)の高安
+    - 追跡: 以降6本(24時間)。基準はブレイク足の終値(実際に入れる価格)
+    - すべて無条件ベースライン(全バーで同じ測定)と併記する
+    """
+    bars = _h4(d)
+    K, N, M = 6, 6, 12
+    rh = bars["high"].shift(1).rolling(K).max().values
+    rl = bars["low"].shift(1).rolling(K).min().values
+    H, L, C = bars["high"].values, bars["low"].values, bars["close"].values
+    years = bars.index.year
+    ev, base, sweep = [], [], []
+
+    for i in range(K, len(bars) - M):
+        w = rh[i] - rl[i]
+        if not np.isfinite(w) or w <= 0:
+            continue
+        fh, fl, fc = H[i+1:i+1+N].max(), L[i+1:i+1+N].min(), C[i+N]
+        reg = regime_of(int(years[i]))
+        base.append({"mfe": (fh - C[i]) / w, "mae": (C[i] - fl) / w,
+                     "cont": bool(fc > C[i]), "trend": (fh - C[i]) / w >= 1.0,
+                     "range_bound": bool(H[i+1:i+1+M].max() <= H[i]
+                                         and L[i+1:i+1+M].min() >= L[i]),
+                     "regime": reg})
+        up, dn = H[i] > rh[i], L[i] < rl[i]
+        if not (up or dn):
+            continue
+        if up and dn:  # 同一足で上下とも刈った
+            sweep.append({"regime": reg, "when": "same_bar",
+                          "range_bound": bool(H[i+1:i+1+M].max() <= H[i]
+                                              and L[i+1:i+1+M].min() >= L[i])})
+            continue
+        if up:
+            kind = "実体抜け" if C[i] > rh[i] else "ヒゲ戻し"
+            mfe, mae = (fh - C[i]) / w, (C[i] - fl) / w
+            cont = bool(fc > C[i])
+            rebreak = bool((H[i+1:i+1+N] > H[i]).any())
+            opp = bool((L[i+1:i+1+M] < rl[i]).any())
+        else:
+            kind = "実体抜け" if C[i] < rl[i] else "ヒゲ戻し"
+            mfe, mae = (C[i] - fl) / w, (fh - C[i]) / w
+            cont = bool(fc < C[i])
+            rebreak = bool((L[i+1:i+1+N] < L[i]).any())
+            opp = bool((H[i+1:i+1+M] > rh[i]).any())
+        ev.append({"kind": kind, "dir": "上" if up else "下", "mfe": mfe,
+                   "mae": mae, "cont": cont, "trend": mfe >= 1.0,
+                   "rebreak": rebreak, "opp_break": opp, "regime": reg,
+                   "range_bound": bool(H[i+1:i+1+M].max() <= H[i]
+                                       and L[i+1:i+1+M].min() >= L[i])})
+
+    if not ev:
+        return {"error": "no breakout events"}
+    e, b = pd.DataFrame(ev), pd.DataFrame(base)
+
+    def agg(g):
+        return {"n": warn_n(len(g)),
+                "継続率(6本後)": round(float(g["cont"].mean()), 3),
+                "トレンド開始率(MFE≧レンジ幅)": round(float(g["trend"].mean()), 3),
+                "MFE中央値(レンジ幅比)": round(float(g["mfe"].median()), 3),
+                "MAE中央値(レンジ幅比)": round(float(g["mae"].median()), 3)}
+
+    out = {
+        "note": "参照レンジ=直前6本(24h)の高安。基準はブレイク足の終値。追跡6本(24h)。"
+                "MFE/MAEはレンジ幅比。コスト未考慮。",
+        "n_breakouts": int(len(e)),
+        "ベースライン(無条件・全バー)": {
+            "n": warn_n(len(b)),
+            "上昇継続率(6本後)": round(float(b["cont"].mean()), 3),
+            "1レンジ幅上抜け率": round(float(b["trend"].mean()), 3),
+            "MFE中央値": round(float(b["mfe"].median()), 3),
+            "12本レンジ内滞在率": round(float(b["range_bound"].mean()), 3),
+        },
+        "H12_種類別": {k: agg(g) for k, g in e.groupby("kind")},
+        "H12_種類×方向": {f"{k}/{dr}": agg(g)
+                          for (k, dr), g in e.groupby(["kind", "dir"])},
+        "H12_レジーム別(実体抜けのみ)": {
+            r: agg(g) for r, g in e[e["kind"] == "実体抜け"].groupby("regime")},
+        "H13_ヒゲ戻し後の再ブレイク": {
+            "再ブレイク率(24h以内)": round(
+                float(e[e["kind"] == "ヒゲ戻し"]["rebreak"].mean()), 3),
+            "n": warn_n(int((e["kind"] == "ヒゲ戻し").sum())),
+            "参考:実体抜けの追随更新率": round(
+                float(e[e["kind"] == "実体抜け"]["rebreak"].mean()), 3),
+        },
+        "H14_両側刈り": {
+            "同一足で両側刈り": {
+                "n": warn_n(len(sweep)),
+                "その後48hレンジ内滞在率": (
+                    round(float(pd.DataFrame(sweep)["range_bound"].mean()), 3)
+                    if sweep else None)},
+            "片側ブレイク後48h以内に反対側も破った率": round(
+                float(e["opp_break"].mean()), 3),
+            "両側破った場合の48hレンジ内滞在率": round(
+                float(e[e["opp_break"]]["range_bound"].mean()), 3),
+            "破らなかった場合": round(
+                float(e[~e["opp_break"]]["range_bound"].mean()), 3),
+        },
+    }
+    return out
+
+
 def main() -> None:
     d = load()
     day = daily(d)
@@ -384,6 +498,7 @@ def main() -> None:
         "H9_消化率と追加変動": h9(d, day),
         "H10_ブレイクだまし率": h10(d, day),
         "H11_両方向刈られ率": h11(d),
+        "H12-14_4H_ブレイク構造": h12_14(d),
     }
     os.makedirs(OUT_DIR, exist_ok=True)
     with open(f"{OUT_DIR}/stats.json", "w") as f:
