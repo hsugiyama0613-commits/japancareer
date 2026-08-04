@@ -130,12 +130,15 @@ def fetch_price(errors: list[str]) -> dict | None:
         try:
             ch = _yahoo_chart(symbol, "5d", "1d")
             i = len(ch["close"]) - 1
+            # 末尾行は「進行中の当日」のことがある(朝実行時は数時間分しかない)。
+            # 前日高安には、直近の「完結した1日」= 末尾より前で最も新しい行を使う
+            j = i - 1 if i >= 1 else i
             return {
-                "date": ch["dates"][i],
-                "open": ch["open"][i],
-                "high": ch["high"][i],
-                "low": ch["low"][i],
-                "close": ch["close"][i],
+                "date": ch["dates"][j],
+                "open": ch["open"][j],
+                "high": ch["high"][j],
+                "low": ch["low"][j],
+                "close": ch["close"][i],  # 現在値は最新
             }
         except Exception as e:  # noqa: BLE001
             last_err = e
