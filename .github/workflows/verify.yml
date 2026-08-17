@@ -7,9 +7,6 @@ on:
         description: "取得開始日 (YYYY-MM-DD)"
         required: false
         default: "2018-01-01"
-  schedule:
-    # 毎月第1土曜 03:00 UTC に再計算（最新データ込みで統計を更新）
-    - cron: "0 3 1-7 * 6"
 
 permissions:
   contents: write
